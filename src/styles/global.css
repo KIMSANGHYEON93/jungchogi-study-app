@@ -442,13 +442,180 @@ button:active { transform: scale(0.97); }
 .badge-warning { background: rgba(251,191,36,0.2); color: var(--warning); }
 .badge-danger { background: rgba(248,113,113,0.2); color: var(--danger); }
 
-/* Responsive */
+/* Mobile bottom tab bar - hidden on desktop */
+.mobile-tab-bar {
+  display: none;
+}
+
+/* Responsive - Mobile */
 @media (max-width: 768px) {
-  .navbar { padding: 0 12px; overflow-x: auto; }
-  .navbar a { padding: 12px 14px; font-size: 0.85rem; }
-  .page { padding: 20px 16px; }
-  .layout-with-sidebar { flex-direction: column; }
-  .sidebar { width: 100%; position: static; max-height: none; }
-  .stats { flex-direction: column; }
+  /* Hide desktop nav, show bottom tab bar */
+  .desktop-nav { display: none !important; }
+
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    padding: 6px 0;
+    padding-bottom: env(safe-area-inset-bottom, 6px);
+  }
+
+  .mobile-tab-bar a {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 0;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    text-decoration: none;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-tab-bar a.active {
+    color: var(--primary);
+  }
+
+  .mobile-tab-bar .tab-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
+  .mobile-tab-bar .tab-label {
+    font-weight: 600;
+  }
+
+  /* Page spacing - account for bottom tab bar */
+  .page {
+    padding: 16px 14px 80px;
+  }
+
+  .page h1 { font-size: 1.3rem; }
+
+  /* Stats row horizontal on mobile */
+  .stats {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .stat-box {
+    padding: 10px 8px;
+  }
+
+  .stat-box .value { font-size: 1.4rem; }
+  .stat-box .label { font-size: 0.75rem; }
+
+  /* Filter bar - scrollable */
+  .filter-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filter-bar button {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    min-height: 36px;
+  }
+
+  /* Flashcard mobile */
   .flashcard-container { max-width: 100%; }
+
+  .flashcard {
+    min-height: 250px;
+  }
+
+  .flashcard-face {
+    padding: 20px 16px;
+  }
+
+  .flashcard-face h2 { font-size: 1.1rem !important; }
+
+  .flashcard-nav {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .flashcard-nav button {
+    padding: 12px 14px;
+    min-height: 44px;
+    font-size: 0.85rem;
+  }
+
+  /* Sidebar layout becomes vertical */
+  .layout-with-sidebar { flex-direction: column; }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    max-height: none;
+    display: flex;
+    overflow-x: auto;
+    gap: 4px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-item {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+
+  /* Quiz input larger touch target */
+  .quiz-input {
+    font-size: 1rem;
+    padding: 14px 16px;
+    min-height: 48px;
+  }
+
+  /* Exam number buttons larger */
+  .page button {
+    min-height: 44px;
+  }
+
+  /* Timer smaller on mobile */
+  .timer { font-size: 1.8rem; padding: 8px; }
+
+  /* Score display */
+  .score-display { padding: 24px 16px; }
+  .score-display .score { font-size: 3rem; }
+
+  /* Code blocks - smaller font, better scroll */
+  .md-content pre {
+    font-size: 0.8rem;
+    padding: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .md-content table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .md-content th, .md-content td {
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+
+  /* Card padding tighter */
+  .card { padding: 16px; }
+
+  /* General touch targets */
+  button { min-height: 44px; }
+  a { -webkit-tap-highlight-color: transparent; }
 }

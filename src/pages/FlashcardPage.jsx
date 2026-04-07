@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { parseQuiz } from '../utils/parseQuiz';
 import { saveProgress, loadProgress } from '../utils/storage';
+import useSwipe from '../hooks/useSwipe';
 
 const CATEGORIES = ['전체', '데이터베이스', '소프트웨어공학', '디자인패턴/UML', '테스트', '보안/네트워크', 'OS/기타'];
 
@@ -57,13 +58,18 @@ export default function FlashcardPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [cards]);
 
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: next,
+    onSwipeRight: prev,
+  });
+
   const knownCount = allCards.filter((c) => known[c.id]).length;
   const current = cards[idx];
 
   return (
     <div className="page">
       <h1>플래시카드</h1>
-      <p className="subtitle">단답형 100선 — 클릭 또는 스페이스바로 카드 뒤집기</p>
+      <p className="subtitle">단답형 100선 — 탭하여 뒤집기, 좌우 스와이프로 이동</p>
 
       <div className="stats">
         <div className="stat-box">
@@ -101,7 +107,7 @@ export default function FlashcardPage() {
         </div>
       ) : current ? (
         <>
-          <div className="flashcard-container">
+          <div className="flashcard-container" {...swipeHandlers}>
             <div className={`flashcard ${flipped ? 'flipped' : ''}`} onClick={() => setFlipped(!flipped)}>
               <div className="flashcard-face">
                 <span className="badge badge-primary" style={{ marginBottom: 16 }}>{current.category}</span>
