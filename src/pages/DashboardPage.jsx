@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadProgress, saveProgress, getWrongNotes } from '../utils/storage';
+import { loadProgress, saveProgress, getWrongNotes, clearProgress } from '../utils/storage';
 
 const STUDY_DAYS = [
   { day: 1, label: 'C언어', icon: '🔤' },
@@ -39,10 +39,10 @@ export default function DashboardPage() {
     saveProgress('day_checks', next);
   };
 
-  const bogangKnown = loadProgress('flashcard_known_bogang119', {});
   const flashcardTotal = 100;
   const flashcardDone = Object.values(flashcardKnown).filter(Boolean).length;
-  const bogangDone = Object.values(bogangKnown).filter(Boolean).length;
+  const bogangTotal = 24;
+  const bogangDone = Object.values(loadProgress('flashcard_known_bogang119', {})).filter(Boolean).length;
   const quizDone = Object.keys(quizResults).length;
   const quizTotal = 40;
   const wrongTotal = wrongNotes.length;
@@ -50,7 +50,8 @@ export default function DashboardPage() {
   const daysCompleted = Object.values(dayChecks).filter(Boolean).length;
 
   const overallPercent = Math.round(
-    ((flashcardDone / flashcardTotal) * 40 +
+    ((flashcardDone / flashcardTotal) * 25 +
+      (bogangDone / bogangTotal) * 15 +
       (quizDone / quizTotal) * 30 +
       (daysCompleted / 14) * 30)
   );
@@ -115,6 +116,16 @@ export default function DashboardPage() {
           <div className="dash-stat-sub">{Math.round((flashcardDone / flashcardTotal) * 100)}% 완료</div>
         </div>
 
+        <div className="card dash-stat-card" onClick={() => navigate('/flashcard')} style={{ cursor: 'pointer' }}>
+          <div className="dash-stat-icon">📚</div>
+          <div className="dash-stat-title">암기 119선</div>
+          <div className="dash-stat-value">{bogangDone}<span>/{bogangTotal}</span></div>
+          <div className="progress-bar" style={{ marginTop: 8 }}>
+            <div className="fill" style={{ width: `${(bogangDone / bogangTotal) * 100}%`, background: 'var(--accent)' }} />
+          </div>
+          <div className="dash-stat-sub">{Math.round((bogangDone / bogangTotal) * 100)}% 완료</div>
+        </div>
+
         <div className="card dash-stat-card" onClick={() => navigate('/quiz')} style={{ cursor: 'pointer' }}>
           <div className="dash-stat-icon">💻</div>
           <div className="dash-stat-title">코드 퀴즈</div>
@@ -166,6 +177,83 @@ export default function DashboardPage() {
 
       <div style={{ textAlign: 'center', marginTop: 16, color: 'var(--text-dim)', fontSize: '0.85rem' }}>
         {daysCompleted}/14일 완료 — 클릭하여 완료 표시
+      </div>
+
+      {/* 데이터 관리 */}
+      <div className="card" style={{ marginTop: 32 }}>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: 16 }}>데이터 관리</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            className="btn-outline"
+            onClick={() => {
+              const data = {};
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('jungchogi_')) {
+                  data[key] = localStorage.getItem(key);
+                }
+              }
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `jungchogi_backup_${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            학습 데이터 내보내기
+          </button>
+          <button
+            className="btn-outline"
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '.json';
+              input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const data = JSON.parse(ev.target.result);
+                    let count = 0;
+                    for (const [key, value] of Object.entries(data)) {
+                      if (key.startsWith('jungchogi_')) {
+                        localStorage.setItem(key, value);
+                        count++;
+                      }
+                    }
+                    window.alert(`${count}개 항목을 복원했습니다.`);
+                    window.location.reload();
+                  } catch {
+                    window.alert('유효하지 않은 백업 파일입니다.');
+                  }
+                };
+                reader.readAsText(file);
+              };
+              input.click();
+            }}
+          >
+            데이터 가져오기
+          </button>
+          <button
+            className="btn-outline"
+            style={{ color: 'var(--danger)' }}
+            onClick={() => {
+              if (!window.confirm('모든 학습 진도를 초기화하시겠습니까?\n(플래시카드, 퀴즈, 오답노트, Day 체크 등 모든 데이터가 삭제됩니다)')) return;
+              const keysToRemove = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('jungchogi_')) keysToRemove.push(key);
+              }
+              keysToRemove.forEach((k) => localStorage.removeItem(k));
+              window.location.reload();
+            }}
+          >
+            전체 초기화
+          </button>
+        </div>
       </div>
     </div>
   );

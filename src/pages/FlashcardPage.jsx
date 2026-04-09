@@ -58,8 +58,8 @@ export default function FlashcardPage() {
     saveProgress(`flashcard_known_${deck}`, next);
   }, [known, deck]);
 
-  const next = () => { setFlipped(false); setIdx((i) => Math.min(i + 1, cards.length - 1)); };
-  const prev = () => { setFlipped(false); setIdx((i) => Math.max(i - 1, 0)); };
+  const next = useCallback(() => { setFlipped(false); setIdx((i) => Math.min(i + 1, cards.length - 1)); }, [cards.length]);
+  const prev = useCallback(() => { setFlipped(false); setIdx((i) => Math.max(i - 1, 0)); }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -69,7 +69,7 @@ export default function FlashcardPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [cards]);
+  }, [next, prev]);
 
   const swipeHandlers = useSwipe({
     onSwipeLeft: next,
@@ -78,7 +78,6 @@ export default function FlashcardPage() {
 
   const knownCount = allCards.filter((c) => known[c.id]).length;
   const current = cards[idx];
-  const deckInfo = DECKS.find((d) => d.key === deck);
 
   return (
     <div className="page">

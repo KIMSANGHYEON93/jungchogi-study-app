@@ -63,6 +63,9 @@ export default function ExamPage() {
         if (t <= 1) {
           clearInterval(timerRef.current);
           setPhase('result');
+          // 시간 초과 시에도 오답노트 상태 로드
+          const savedWrong = getWrongNotes().filter((n) => n.source === 'exam').map((n) => n.id);
+          setWrongIds(new Set(savedWrong));
           return 0;
         }
         return t - 1;

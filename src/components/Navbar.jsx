@@ -11,6 +11,7 @@ export default function Navbar() {
         <NavLink to="/study">학습노트</NavLink>
         <NavLink to="/exam">모의고사</NavLink>
         <NavLink to="/wrong">오답노트</NavLink>
+        <NavLink to="/search">검색</NavLink>
       </nav>
 
       {/* Mobile: bottom tab bar */}
@@ -26,6 +27,10 @@ export default function Navbar() {
         <NavLink to="/quiz">
           <span className="tab-icon">💻</span>
           <span className="tab-label">퀴즈</span>
+        </NavLink>
+        <NavLink to="/exam">
+          <span className="tab-icon">📝</span>
+          <span className="tab-label">시험</span>
         </NavLink>
         <NavLink to="/study">
           <span className="tab-icon">📖</span>
