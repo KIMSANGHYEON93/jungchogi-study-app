@@ -3,6 +3,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
+import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -26,6 +27,7 @@ export default function ExamPage() {
   const [timeLeft, setTimeLeft] = useState(150 * 60); // 150분
   const [currentQ, setCurrentQ] = useState(0);
   const timerRef = useRef(null);
+  const [wrongIds, setWrongIds] = useState(new Set());
 
   // 문제 풀 로드
   const [quizPool, setQuizPool] = useState([]);
@@ -72,6 +74,8 @@ export default function ExamPage() {
   const submitExam = () => {
     clearInterval(timerRef.current);
     setPhase('result');
+    const savedWrong = getWrongNotes().filter((n) => n.source === 'exam').map((n) => n.id);
+    setWrongIds(new Set(savedWrong));
   };
 
   const timerClass = timeLeft < 300 ? 'timer danger' : timeLeft < 600 ? 'timer warning' : 'timer';
@@ -218,6 +222,43 @@ export default function ExamPage() {
               {q.answer}
             </div>
           </details>
+          <div style={{ marginTop: 8 }}>
+            {wrongIds.has(q.id) ? (
+              <button
+                className="btn-outline"
+                style={{ color: 'var(--success)', fontSize: '0.85rem', padding: '6px 14px' }}
+                onClick={() => {
+                  removeWrongNote('exam', q.id);
+                  setWrongIds((prev) => { const s = new Set(prev); s.delete(q.id); return s; });
+                }}
+              >
+                오답노트에서 제거
+              </button>
+            ) : (
+              <button
+                className="btn-outline"
+                style={{ color: 'var(--danger)', fontSize: '0.85rem', padding: '6px 14px' }}
+                onClick={() => {
+                  addWrongNote({
+                    id: q.id,
+                    source: 'exam',
+                    type: q.type,
+                    question: q.type === 'quiz' ? q.question : undefined,
+                    title: q.type === 'code' ? q.title : undefined,
+                    code: q.type === 'code' ? q.code : undefined,
+                    lang: q.type === 'code' ? q.lang : undefined,
+                    answer: q.answer,
+                    pitfall: q.pitfall,
+                    userAnswer: answers[i]?.trim() || '',
+                    category: q.category,
+                  });
+                  setWrongIds((prev) => new Set(prev).add(q.id));
+                }}
+              >
+                오답노트에 추가
+              </button>
+            )}
+          </div>
         </div>
       ))}
 

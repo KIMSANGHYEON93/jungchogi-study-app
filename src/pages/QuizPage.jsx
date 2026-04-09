@@ -3,7 +3,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
-import { saveProgress, loadProgress } from '../utils/storage';
+import { saveProgress, loadProgress, addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
 const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', sql: 'SQL' };
@@ -16,6 +16,7 @@ export default function QuizPage() {
   const [userAnswer, setUserAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState({}); // { id: 'correct'|'incorrect' }
+  const [wrongIds, setWrongIds] = useState(new Set());
 
   useEffect(() => {
     fetch('/data/정처기_코드트레이싱_드릴.md')
@@ -25,6 +26,8 @@ export default function QuizPage() {
         setAllProblems(parsed);
         setProblems(parsed);
         setResults(loadProgress('quiz_results', {}));
+        const savedWrong = getWrongNotes().filter((n) => n.source === 'quiz').map((n) => n.id);
+        setWrongIds(new Set(savedWrong));
       });
   }, []);
 
@@ -126,6 +129,40 @@ export default function QuizPage() {
                     <strong style={{ color: 'var(--warning)' }}>함정:</strong> {current.pitfall}
                   </div>
                 )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  {wrongIds.has(current.id) ? (
+                    <button
+                      className="btn-outline"
+                      style={{ color: 'var(--success)' }}
+                      onClick={() => {
+                        removeWrongNote('quiz', current.id);
+                        setWrongIds((prev) => { const s = new Set(prev); s.delete(current.id); return s; });
+                      }}
+                    >
+                      오답노트에서 제거
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-danger"
+                      onClick={() => {
+                        addWrongNote({
+                          id: current.id,
+                          source: 'quiz',
+                          type: 'code',
+                          title: current.title,
+                          code: current.code,
+                          lang: current.lang,
+                          answer: current.answer,
+                          pitfall: current.pitfall,
+                          userAnswer: userAnswer,
+                        });
+                        setWrongIds((prev) => new Set(prev).add(current.id));
+                      }}
+                    >
+                      오답노트에 추가
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
