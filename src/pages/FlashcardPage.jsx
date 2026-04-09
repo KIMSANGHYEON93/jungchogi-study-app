@@ -1,30 +1,43 @@
 import { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { parseQuiz } from '../utils/parseQuiz';
+import { parseBogang } from '../utils/parseBogang';
 import { saveProgress, loadProgress } from '../utils/storage';
 import useSwipe from '../hooks/useSwipe';
 
 const CATEGORIES = ['전체', '데이터베이스', '소프트웨어공학', '디자인패턴/UML', '테스트', '보안/네트워크', 'OS/기타'];
 
+const DECKS = [
+  { key: 'quiz100', label: '단답형 100선', file: '정처기_단답형_100선.md', parser: 'quiz' },
+  { key: 'bogang119', label: '암기 119선 보강', file: '정처기_보강_기출분석_암기119선.md', parser: 'bogang' },
+];
+
 export default function FlashcardPage() {
+  const [deck, setDeck] = useState('quiz100');
   const [allCards, setAllCards] = useState([]);
   const [cards, setCards] = useState([]);
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [category, setCategory] = useState('전체');
-  const [known, setKnown] = useState({});      // { id: true/false }
-  const [filterMode, setFilterMode] = useState('all'); // all | unknown
+  const [known, setKnown] = useState({});
+  const [filterMode, setFilterMode] = useState('all');
 
+  // 덱 변경 시 데이터 로드
   useEffect(() => {
-    fetch('/data/정처기_단답형_100선.md')
+    const deckInfo = DECKS.find((d) => d.key === deck);
+    fetch(`/data/${deckInfo.file}`)
       .then((r) => r.text())
       .then((text) => {
-        const parsed = parseQuiz(text);
+        const parsed = deckInfo.parser === 'quiz' ? parseQuiz(text) : parseBogang(text);
         setAllCards(parsed);
         setCards(parsed);
-        setKnown(loadProgress('flashcard_known', {}));
+        setKnown(loadProgress(`flashcard_known_${deck}`, {}));
+        setIdx(0);
+        setFlipped(false);
+        setCategory('전체');
+        setFilterMode('all');
       });
-  }, []);
+  }, [deck]);
 
   useEffect(() => {
     let filtered = allCards;
@@ -42,8 +55,8 @@ export default function FlashcardPage() {
   const markKnown = useCallback((id, val) => {
     const next = { ...known, [id]: val };
     setKnown(next);
-    saveProgress('flashcard_known', next);
-  }, [known]);
+    saveProgress(`flashcard_known_${deck}`, next);
+  }, [known, deck]);
 
   const next = () => { setFlipped(false); setIdx((i) => Math.min(i + 1, cards.length - 1)); };
   const prev = () => { setFlipped(false); setIdx((i) => Math.max(i - 1, 0)); };
@@ -65,11 +78,25 @@ export default function FlashcardPage() {
 
   const knownCount = allCards.filter((c) => known[c.id]).length;
   const current = cards[idx];
+  const deckInfo = DECKS.find((d) => d.key === deck);
 
   return (
     <div className="page">
       <h1>플래시카드</h1>
-      <p className="subtitle">단답형 100선 — 탭하여 뒤집기, 좌우 스와이프로 이동</p>
+      <p className="subtitle">탭하여 뒤집기, 좌우 스와이프로 이동</p>
+
+      {/* 덱 선택 */}
+      <div className="deck-selector">
+        {DECKS.map((d) => (
+          <button
+            key={d.key}
+            className={`deck-btn ${deck === d.key ? 'active' : ''}`}
+            onClick={() => setDeck(d.key)}
+          >
+            {d.label}
+          </button>
+        ))}
+      </div>
 
       <div className="stats">
         <div className="stat-box">
@@ -108,7 +135,7 @@ export default function FlashcardPage() {
       ) : current ? (
         <>
           <div className="flashcard-container" {...swipeHandlers}>
-            <div className={`flashcard ${flipped ? 'flipped' : ''}`} onClick={() => setFlipped(!flipped)}>
+            <div className={`flashcard ${flipped ? 'flipped' : ''} ${deck === 'bogang119' && flipped ? 'flashcard-tall' : ''}`} onClick={() => setFlipped(!flipped)}>
               <div className="flashcard-face">
                 <span className="badge badge-primary" style={{ marginBottom: 16 }}>{current.category}</span>
                 <h2 style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: 1.6 }}>
@@ -117,7 +144,7 @@ export default function FlashcardPage() {
                 <p style={{ color: 'var(--text-dim)', marginTop: 16, fontSize: '0.85rem' }}>클릭하여 정답 확인</p>
               </div>
               <div className="flashcard-face flashcard-back">
-                <div className="md-content" style={{ width: '100%', fontSize: '0.95rem' }}>
+                <div className="md-content" style={{ width: '100%', fontSize: deck === 'bogang119' ? '0.85rem' : '0.95rem' }}>
                   <ReactMarkdown>{current.answer}</ReactMarkdown>
                 </div>
               </div>

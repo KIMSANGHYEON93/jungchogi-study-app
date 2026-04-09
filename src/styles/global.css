@@ -261,6 +261,36 @@ button:active { transform: scale(0.97); }
   color: var(--primary);
 }
 
+/* Deck selector */
+.deck-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.deck-btn {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: var(--radius);
+  transition: all 0.2s;
+}
+
+.deck-btn.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(108, 140, 255, 0.1);
+}
+
+.deck-btn:hover {
+  border-color: var(--primary-dim);
+  color: var(--text);
+}
+
 /* Flashcard specific */
 .flashcard-container {
   perspective: 1000px;
@@ -301,6 +331,10 @@ button:active { transform: scale(0.97); }
   text-align: left;
   align-items: flex-start;
   overflow-y: auto;
+}
+
+.flashcard-tall {
+  min-height: 500px;
 }
 
 .flashcard-nav {

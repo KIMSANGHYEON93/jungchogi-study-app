@@ -13,6 +13,15 @@ export function clearProgress(key) {
   localStorage.removeItem(PREFIX + key);
 }
 
+// ─── 마이그레이션: flashcard_known → flashcard_known_quiz100 ───
+(function migrateFlashcardKey() {
+  const oldKey = 'jungchogi_flashcard_known';
+  const newKey = 'jungchogi_flashcard_known_quiz100';
+  if (localStorage.getItem(oldKey) && !localStorage.getItem(newKey)) {
+    localStorage.setItem(newKey, localStorage.getItem(oldKey));
+  }
+})();
+
 // ─── 오답노트 ───
 
 const WRONG_NOTES_KEY = 'wrong_notes';

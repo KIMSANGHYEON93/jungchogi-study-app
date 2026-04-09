@@ -27,7 +27,7 @@ export default function DashboardPage() {
   const [dayChecks, setDayChecks] = useState({});
 
   useEffect(() => {
-    setFlashcardKnown(loadProgress('flashcard_known', {}));
+    setFlashcardKnown(loadProgress('flashcard_known_quiz100', {}));
     setQuizResults(loadProgress('quiz_results', {}));
     setWrongNotes(getWrongNotes());
     setDayChecks(loadProgress('day_checks', {}));
@@ -39,8 +39,10 @@ export default function DashboardPage() {
     saveProgress('day_checks', next);
   };
 
+  const bogangKnown = loadProgress('flashcard_known_bogang119', {});
   const flashcardTotal = 100;
   const flashcardDone = Object.values(flashcardKnown).filter(Boolean).length;
+  const bogangDone = Object.values(bogangKnown).filter(Boolean).length;
   const quizDone = Object.keys(quizResults).length;
   const quizTotal = 40;
   const wrongTotal = wrongNotes.length;
