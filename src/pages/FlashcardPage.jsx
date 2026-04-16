@@ -4,6 +4,7 @@ import { parseQuiz } from '../utils/parseQuiz';
 import { parseBogang } from '../utils/parseBogang';
 import { saveProgress, loadProgress } from '../utils/storage';
 import useSwipe from '../hooks/useSwipe';
+import useStudyTimer from '../hooks/useStudyTimer';
 import Icon from '../components/Icon';
 
 const CATEGORIES = ['전체', '데이터베이스', '소프트웨어공학', '디자인패턴/UML', '테스트', '보안/네트워크', 'OS/기타'];
@@ -14,6 +15,7 @@ const DECKS = [
 ];
 
 export default function FlashcardPage() {
+  useStudyTimer();
   const [deck, setDeck] = useState('quiz100');
   const [allCards, setAllCards] = useState([]);
   const [cards, setCards] = useState([]);

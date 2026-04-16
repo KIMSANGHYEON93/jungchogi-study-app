@@ -404,9 +404,8 @@ export default function LandingPage() {
       <footer className="landing-footer" role="contentinfo">
         <div className="landing-footer-inner">
           <div className="landing-footer-links">
-            <a href="/terms">이용약관</a>
-            <a href="/privacy">개인정보처리방침</a>
-            <a href="/contact">문의하기</a>
+            <a href="https://github.com/KIMSANGHYEON93/jungchogi-study-app" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="mailto:sanghyun6467@gmail.com">문의하기</a>
           </div>
           <p className="landing-footer-copy">
             &copy; 2026 정처기 학습. All rights reserved.

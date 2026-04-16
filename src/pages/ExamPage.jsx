@@ -4,6 +4,7 @@ import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/pris
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
+import useStudyTimer from '../hooks/useStudyTimer';
 import Icon from '../components/Icon';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -23,6 +24,7 @@ function formatTime(seconds) {
 }
 
 export default function ExamPage() {
+  useStudyTimer();
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [phase, setPhase] = useState('ready'); // ready | exam | result

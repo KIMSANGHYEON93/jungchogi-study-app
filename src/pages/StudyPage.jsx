@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import MarkdownViewer from '../components/MarkdownViewer';
+import useStudyTimer from '../hooks/useStudyTimer';
 
 const FILES = [
   { name: 'Day 01 — C언어', file: '정처기_Day01_C언어.md' },
@@ -23,6 +24,7 @@ const FILES = [
 ];
 
 export default function StudyPage() {
+  useStudyTimer();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);

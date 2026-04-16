@@ -4,6 +4,7 @@ import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/pris
 import ReactMarkdown from 'react-markdown';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { saveProgress, loadProgress, addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
+import useStudyTimer from '../hooks/useStudyTimer';
 import Icon from '../components/Icon';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -11,6 +12,7 @@ const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
 const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', sql: 'SQL' };
 
 export default function QuizPage() {
+  useStudyTimer();
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [allProblems, setAllProblems] = useState([]);

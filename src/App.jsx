@@ -8,6 +8,7 @@ import WrongNotePage from './pages/WrongNotePage';
 import DashboardPage from './pages/DashboardPage';
 import SearchPage from './pages/SearchPage';
 import LandingPage from './pages/LandingPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { useTheme, ThemeProvider } from './hooks/useTheme';
 
 function AppLayout() {
@@ -26,6 +27,7 @@ function AppLayout() {
         <Route path="/exam" element={<ExamPage />} />
         <Route path="/wrong" element={<WrongNotePage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
   );

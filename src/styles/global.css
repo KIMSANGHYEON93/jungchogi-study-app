@@ -1664,6 +1664,116 @@ html { scroll-behavior: smooth; }
   }
 }
 
+/* ─── D-Day 카운터 ─── */
+.dday-card {
+  position: relative;
+}
+.dday-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1.2;
+}
+.dday-value.warning {
+  color: var(--warning);
+}
+.dday-value.danger {
+  color: var(--danger);
+  animation: pulse-dday 2s ease-in-out infinite;
+}
+@keyframes pulse-dday {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ─── 주간 학습 시간 차트 ─── */
+.weekly-chart {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 140px;
+}
+.weekly-chart-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.weekly-chart-value {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  min-height: 16px;
+}
+.weekly-chart-bar-bg {
+  flex: 1;
+  width: 100%;
+  max-width: 32px;
+  background: var(--bg-hover);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+}
+.weekly-chart-bar {
+  width: 100%;
+  background: var(--primary);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 0;
+}
+.weekly-chart-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+/* ─── 오답 유형 분석 ─── */
+.wrong-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wrong-analysis-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wrong-analysis-label {
+  width: 90px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: right;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wrong-analysis-bar-bg {
+  flex: 1;
+  height: 20px;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.wrong-analysis-bar {
+  height: 100%;
+  background: var(--danger);
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 4px;
+}
+.wrong-analysis-count {
+  width: 28px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--danger);
+  text-align: center;
+  flex-shrink: 0;
+}
+
 /* Wide desktop containment */
 @media (min-width: 1440px) {
   .page { max-width: 1200px; }

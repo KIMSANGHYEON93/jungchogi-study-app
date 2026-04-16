@@ -64,3 +64,62 @@ export function updateWrongNote(source, id, updates) {
 export function clearAllWrongNotes() {
   saveProgress(WRONG_NOTES_KEY, []);
 }
+
+// ─── D-Day ───
+
+export function setExamDate(dateStr) {
+  saveProgress('exam_date', dateStr);
+}
+
+export function getExamDate() {
+  return loadProgress('exam_date', null);
+}
+
+// ─── 학습 시간 추적 ───
+
+const STUDY_TIME_KEY = 'study_time';
+
+export function getStudyTimeLog() {
+  return loadProgress(STUDY_TIME_KEY, {});
+}
+
+export function addStudyTime(minutes) {
+  const log = getStudyTimeLog();
+  const today = new Date().toISOString().slice(0, 10);
+  log[today] = (log[today] || 0) + minutes;
+  saveProgress(STUDY_TIME_KEY, log);
+}
+
+export function getWeeklyStudyTime() {
+  const log = getStudyTimeLog();
+  const result = [];
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    result.push({
+      date: key,
+      day: dayNames[d.getDay()],
+      minutes: log[key] || 0,
+    });
+  }
+  return result;
+}
+
+// ─── 간격 반복 (Spaced Repetition) ───
+
+export function getSpacedRepetitionDue() {
+  const notes = getWrongNotes();
+  const now = Date.now();
+  const intervals = [1, 3, 7]; // 일 단위
+
+  return notes.filter((n) => {
+    if (n.mastered) return false;
+    const lastTime = n.lastReviewed || n.addedAt;
+    if (!lastTime) return true;
+    const daysSince = (now - lastTime) / (1000 * 60 * 60 * 24);
+    const nextInterval = intervals[Math.min(n.reviewCount, intervals.length - 1)] || 7;
+    return daysSince >= nextInterval;
+  });
+}
