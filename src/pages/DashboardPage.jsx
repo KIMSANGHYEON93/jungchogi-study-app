@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadProgress, saveProgress, getWrongNotes, getExamDate, setExamDate, getWeeklyStudyTime, addStudyTime, getSpacedRepetitionDue } from '../utils/storage';
+import { loadProgress, saveProgress, getWrongNotes, getExamDate, setExamDate, getWeeklyStudyTime, addStudyTime, getSpacedRepetitionDue, getStorageUsage, formatBytes } from '../utils/storage';
 import Icon from '../components/Icon';
 
 const STUDY_DAYS = [
@@ -376,7 +376,19 @@ export default function DashboardPage() {
 
       {/* 데이터 관리 */}
       <div className="card" style={{ marginTop: 32 }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: 16 }}>데이터 관리</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h2 style={{ fontSize: '1.1rem', margin: 0 }}>데이터 관리</h2>
+          {(() => {
+            const usage = getStorageUsage();
+            const limit = 5 * 1024 * 1024;
+            const pct = Math.round((usage / limit) * 100);
+            return (
+              <span style={{ fontSize: '0.82rem', color: pct > 80 ? 'var(--danger)' : 'var(--text-dim)' }}>
+                {pct > 80 && <Icon name="alert-circle" size={14} />} {formatBytes(usage)} / 5 MB ({pct}%)
+              </span>
+            );
+          })()}
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             className="btn-outline"

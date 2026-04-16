@@ -34,6 +34,7 @@ export default function ExamPage() {
   const [timeLeft, setTimeLeft] = useState(150 * 60); // 150분
   const [currentQ, setCurrentQ] = useState(0);
   const timerRef = useRef(null);
+  const endTimeRef = useRef(null);
   const [wrongIds, setWrongIds] = useState(new Set());
 
   // 문제 풀 로드
@@ -59,24 +60,22 @@ export default function ExamPage() {
     setAnswers({});
     setCurrentQ(0);
     setTimeLeft(150 * 60);
+    endTimeRef.current = Date.now() + 150 * 60 * 1000;
     setPhase('exam');
   };
 
-  // 타이머
+  // 타이머 (Date.now 기반으로 drift 보정)
   useEffect(() => {
     if (phase !== 'exam') return;
     timerRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(timerRef.current);
-          setPhase('result');
-          // 시간 초과 시에도 오답노트 상태 로드
-          const savedWrong = getWrongNotes().filter((n) => n.source === 'exam').map((n) => n.id);
-          setWrongIds(new Set(savedWrong));
-          return 0;
-        }
-        return t - 1;
-      });
+      const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        setPhase('result');
+        const savedWrong = getWrongNotes().filter((n) => n.source === 'exam').map((n) => n.id);
+        setWrongIds(new Set(savedWrong));
+      }
     }, 1000);
     return () => clearInterval(timerRef.current);
   }, [phase]);

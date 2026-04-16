@@ -23,6 +23,7 @@ export default function SearchPage() {
   const [results, setResults] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [sourceFilter, setSourceFilter] = useState('전체');
+  const [showCount, setShowCount] = useState(20);
   const [loading, setLoading] = useState(true);
   const inputRef = useRef(null);
 
@@ -77,6 +78,7 @@ export default function SearchPage() {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       doSearch(query, allItems, sourceFilter);
+      setShowCount(20);
     }, 200);
     return () => clearTimeout(debounceRef.current);
   }, [query, allItems, sourceFilter, doSearch]);
@@ -136,7 +138,7 @@ export default function SearchPage() {
       {/* 결과 수 */}
       {query.trim() && (
         <div style={{ marginBottom: 16, color: 'var(--text-dim)', fontSize: '0.9rem' }} aria-live="polite">
-          {results.length}개 결과 {results.length > 50 && '(상위 50개 표시)'}
+          {results.length}개 결과
         </div>
       )}
 
@@ -155,68 +157,72 @@ export default function SearchPage() {
           <p style={{ color: 'var(--text-dim)' }}>"{query}"에 대한 검색 결과가 없습니다</p>
         </div>
       ) : (
-        results.slice(0, 50).map((item) => {
-          const config = SOURCE_CONFIG[item.source];
-          const key = `${item.source}_${item.id}`;
-          const isExpanded = expandedId === key;
+        <>
+          {results.slice(0, showCount).map((item) => {
+            const config = SOURCE_CONFIG[item.source];
+            const key = `${item.source}_${item.id}`;
+            const isExpanded = expandedId === key;
 
-          return (
-            <div key={key} className="card search-result-card" style={{ marginBottom: 10 }}>
-              <div
-                onClick={() => setExpandedId(isExpanded ? null : key)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : key); } }}
-                role="button"
-                tabIndex={0}
-                aria-expanded={isExpanded}
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12 }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                    <span className={`badge ${config.badge}`}>{config.label}</span>
-                    {item.category && <span className="badge badge-success">{item.category}</span>}
-                    {item.lang && <span className="badge badge-warning">{item.lang.toUpperCase()}</span>}
+            return (
+              <div key={key} className="card search-result-card" style={{ marginBottom: 10 }}>
+                <div
+                  onClick={() => setExpandedId(isExpanded ? null : key)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : key); } }}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12 }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                      <span className={`badge ${config.badge}`}>{config.label}</span>
+                      {item.category && <span className="badge badge-success">{item.category}</span>}
+                      {item.lang && <span className="badge badge-warning">{item.lang.toUpperCase()}</span>}
+                    </div>
+                    <h3 style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
+                      {item.id}. {item.question || item.title}
+                    </h3>
                   </div>
-                  <h3 style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
-                    {item.id}. {item.question || item.title}
-                  </h3>
+                  <span style={{ color: 'var(--text-dim)', flexShrink: 0 }}>
+                    <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16}/>
+                  </span>
                 </div>
-                <span style={{ color: 'var(--text-dim)', flexShrink: 0 }}>
-                  <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16}/>
-                </span>
+
+                {isExpanded && (
+                  <div style={{ marginTop: 16 }}>
+                    {item.code && (
+                      <SyntaxHighlighter
+                        language={item.lang}
+                        style={syntaxTheme}
+                        customStyle={{ borderRadius: 8, fontSize: '0.85rem' }}
+                      >
+                        {item.code}
+                      </SyntaxHighlighter>
+                    )}
+                    <div className="quiz-result correct" style={{ marginTop: item.code ? 12 : 0 }}>
+                      <h4 style={{ marginBottom: 8, color: 'var(--success)' }}>정답 / 해설</h4>
+                      <div className="md-content" style={{ fontSize: '0.85rem' }}>
+                        <ReactMarkdown>{highlightText(item.answer, query)}</ReactMarkdown>
+                      </div>
+                    </div>
+                    {item.pitfall && (
+                      <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(251,191,36,0.1)', borderRadius: 8, border: '1px solid var(--warning)' }}>
+                        <strong style={{ color: 'var(--warning)' }}>함정:</strong> {item.pitfall}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {isExpanded && (
-                <div style={{ marginTop: 16 }}>
-                  {/* 코드 블록 */}
-                  {item.code && (
-                    <SyntaxHighlighter
-                      language={item.lang}
-                      style={syntaxTheme}
-                      customStyle={{ borderRadius: 8, fontSize: '0.85rem' }}
-                    >
-                      {item.code}
-                    </SyntaxHighlighter>
-                  )}
-
-                  {/* 정답 */}
-                  <div className="quiz-result correct" style={{ marginTop: item.code ? 12 : 0 }}>
-                    <h4 style={{ marginBottom: 8, color: 'var(--success)' }}>정답 / 해설</h4>
-                    <div className="md-content" style={{ fontSize: '0.85rem' }}>
-                      <ReactMarkdown>{highlightText(item.answer, query)}</ReactMarkdown>
-                    </div>
-                  </div>
-
-                  {/* 함정 */}
-                  {item.pitfall && (
-                    <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(251,191,36,0.1)', borderRadius: 8, border: '1px solid var(--warning)' }}>
-                      <strong style={{ color: 'var(--warning)' }}>함정:</strong> {item.pitfall}
-                    </div>
-                  )}
-                </div>
-              )}
+            );
+          })}
+          {showCount < results.length && (
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <button className="btn-outline" onClick={() => setShowCount((c) => c + 20)}>
+                더 보기 ({results.length - showCount}개 남음)
+              </button>
             </div>
-          );
-        })
+          )}
+        </>
       )}
     </div>
   );

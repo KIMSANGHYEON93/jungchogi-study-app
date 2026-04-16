@@ -109,6 +109,25 @@ export function getWeeklyStudyTime() {
 
 // ─── 간격 반복 (Spaced Repetition) ───
 
+// ─── localStorage 용량 ───
+
+export function getStorageUsage() {
+  let bytes = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith(PREFIX)) {
+      bytes += key.length * 2 + (localStorage.getItem(key) || '').length * 2;
+    }
+  }
+  return bytes;
+}
+
+export function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 export function getSpacedRepetitionDue() {
   const notes = getWrongNotes();
   const now = Date.now();
