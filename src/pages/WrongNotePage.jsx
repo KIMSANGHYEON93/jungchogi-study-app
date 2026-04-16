@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
 import { getWrongNotes, removeWrongNote, updateWrongNote, clearAllWrongNotes } from '../utils/storage';
+import Icon from '../components/Icon';
+import { useThemeContext } from '../hooks/useTheme';
 
 const SOURCE_LABEL = { quiz: '코드퀴즈', exam: '모의고사' };
 const FILTER_OPTIONS = ['전체', '코드퀴즈', '모의고사', '미복습', '복습완료'];
 
 export default function WrongNotePage() {
+  const { theme } = useThemeContext();
+  const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [notes, setNotes] = useState([]);
   const [filter, setFilter] = useState('전체');
   const [expandedId, setExpandedId] = useState(null);
@@ -97,8 +101,8 @@ export default function WrongNotePage() {
 
       {filtered.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>
-            {totalCount === 0 ? '🎉' : '📭'}
+          <div style={{ marginBottom: 16, color: 'var(--text-dim)' }}>
+            {totalCount === 0 ? <Icon name="party" size={48}/> : <Icon name="inbox" size={48}/>}
           </div>
           <p style={{ color: 'var(--text-dim)' }}>
             {totalCount === 0
@@ -118,6 +122,10 @@ export default function WrongNotePage() {
               <div
                 className="wrong-note-header"
                 onClick={() => setExpandedId(isExpanded ? null : key)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : key); } }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
                 style={{ cursor: 'pointer' }}
               >
                 <div style={{ flex: 1 }}>
@@ -136,8 +144,8 @@ export default function WrongNotePage() {
                     {note.type === 'code' ? `${note.id}. ${note.title}` : `${note.id}. ${note.question}`}
                   </h3>
                 </div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '1.2rem', flexShrink: 0 }}>
-                  {isExpanded ? '▲' : '▼'}
+                <span style={{ color: 'var(--text-dim)', flexShrink: 0 }}>
+                  <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16}/>
                 </span>
               </div>
 
@@ -148,7 +156,7 @@ export default function WrongNotePage() {
                   {note.type === 'code' && note.code && (
                     <SyntaxHighlighter
                       language={note.lang}
-                      style={oneDark}
+                      style={syntaxTheme}
                       customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}
                     >
                       {note.code}

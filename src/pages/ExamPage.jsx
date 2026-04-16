@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
+import Icon from '../components/Icon';
+import { useThemeContext } from '../hooks/useTheme';
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -21,6 +23,8 @@ function formatTime(seconds) {
 }
 
 export default function ExamPage() {
+  const { theme } = useThemeContext();
+  const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [phase, setPhase] = useState('ready'); // ready | exam | result
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -92,7 +96,7 @@ export default function ExamPage() {
         <p className="subtitle">실전과 동일한 150분 타이머 + 랜덤 20문제</p>
 
         <div className="card" style={{ textAlign: 'center', padding: '60px 32px' }}>
-          <div style={{ fontSize: '4rem', marginBottom: 16 }}>📝</div>
+          <div style={{ marginBottom: 16, color: 'var(--primary)' }}><Icon name="exam" size={64}/></div>
           <h2 style={{ marginBottom: 12 }}>정보처리기사 실기 모의고사</h2>
           <p style={{ color: 'var(--text-dim)', marginBottom: 8 }}>단답형 12문제 + 코드 트레이싱 8문제 = 총 20문제</p>
           <p style={{ color: 'var(--text-dim)', marginBottom: 8 }}>제한 시간: 150분 (2시간 30분)</p>
@@ -114,10 +118,10 @@ export default function ExamPage() {
       <div className="page">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1 style={{ marginBottom: 0 }}>모의고사</h1>
-          <div className={timerClass}>{formatTime(timeLeft)}</div>
+          <div className={timerClass} role="timer" aria-live="assertive" aria-label="남은 시간">{formatTime(timeLeft)}</div>
         </div>
 
-        <div className="progress-bar" style={{ marginBottom: 16 }}>
+        <div className="progress-bar" role="progressbar" aria-valuenow={Math.round((answeredCount / 20) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="학습 진도" style={{ marginBottom: 16 }}>
           <div className="fill" style={{ width: `${(answeredCount / 20) * 100}%` }} />
         </div>
 
@@ -151,7 +155,7 @@ export default function ExamPage() {
           ) : (
             <>
               <h3 style={{ marginBottom: 12 }}>{q.title}</h3>
-              <SyntaxHighlighter language={q.lang} style={oneDark} customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}>
+              <SyntaxHighlighter language={q.lang} style={syntaxTheme} customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}>
                 {q.code}
               </SyntaxHighlighter>
             </>
@@ -168,11 +172,11 @@ export default function ExamPage() {
 
           <div className="flashcard-nav" style={{ marginTop: 16 }}>
             <button className="btn-outline" onClick={() => setCurrentQ((c) => Math.max(0, c - 1))} disabled={currentQ === 0}>
-              ◀ 이전
+              <Icon name="chevron-left" size={16}/> 이전
             </button>
             <span className="flashcard-counter">{answeredCount}/20 답안 작성</span>
             <button className="btn-outline" onClick={() => setCurrentQ((c) => Math.min(19, c + 1))} disabled={currentQ === 19}>
-              다음 ▶
+              다음 <Icon name="chevron-right" size={16}/>
             </button>
           </div>
 
@@ -197,7 +201,7 @@ export default function ExamPage() {
         <div style={{ fontSize: '1rem', color: 'var(--text-dim)', marginBottom: 8 }}>예상 점수</div>
         <div className={`score ${pass ? 'pass' : 'fail'}`}>{estimatedScore}점</div>
         <div style={{ marginTop: 12, fontSize: '1.2rem' }}>
-          {pass ? '합격 예상! 🎉' : '아쉽습니다. 복습 후 재도전!'}
+          {pass ? <><Icon name="party" size={24}/> 합격 예상!</> : '아쉽습니다. 복습 후 재도전!'}
         </div>
         <div style={{ color: 'var(--text-dim)', marginTop: 8 }}>
           작성 답안: {totalAnswered}/20 | 미작성: {20 - totalAnswered}

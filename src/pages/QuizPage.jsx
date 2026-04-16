@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { saveProgress, loadProgress, addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
+import Icon from '../components/Icon';
+import { useThemeContext } from '../hooks/useTheme';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
 const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', sql: 'SQL' };
 
 export default function QuizPage() {
+  const { theme } = useThemeContext();
+  const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [allProblems, setAllProblems] = useState([]);
   const [problems, setProblems] = useState([]);
   const [idx, setIdx] = useState(0);
@@ -99,7 +103,7 @@ export default function QuizPage() {
             <span className="badge badge-primary">{current.lang.toUpperCase()}</span>
           </div>
 
-          <SyntaxHighlighter language={current.lang} style={oneDark} customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}>
+          <SyntaxHighlighter language={current.lang} style={syntaxTheme} customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}>
             {current.code}
           </SyntaxHighlighter>
 
@@ -119,7 +123,7 @@ export default function QuizPage() {
             {!submitted ? (
               <button className="btn-primary" onClick={handleSubmit} style={{ marginTop: 8 }}>정답 확인</button>
             ) : (
-              <div className="quiz-result correct" style={{ marginTop: 12 }}>
+              <div className="quiz-result correct" style={{ marginTop: 12 }} aria-live="polite">
                 <h3 style={{ marginBottom: 8, color: 'var(--success)' }}>풀이</h3>
                 <div className="md-content" style={{ fontSize: '0.9rem' }}>
                   <ReactMarkdown>{current.answer}</ReactMarkdown>
@@ -168,9 +172,9 @@ export default function QuizPage() {
           </div>
 
           <div className="flashcard-nav" style={{ marginTop: 20 }}>
-            <button className="btn-outline" onClick={() => goTo(idx - 1)} disabled={idx === 0}>◀ 이전</button>
+            <button className="btn-outline" onClick={() => goTo(idx - 1)} disabled={idx === 0}><Icon name="chevron-left" size={16}/> 이전</button>
             <span className="flashcard-counter">{idx + 1} / {problems.length}</span>
-            <button className="btn-outline" onClick={() => goTo(idx + 1)} disabled={idx === problems.length - 1}>다음 ▶</button>
+            <button className="btn-outline" onClick={() => goTo(idx + 1)} disabled={idx === problems.length - 1}>다음 <Icon name="chevron-right" size={16}/></button>
           </div>
         </div>
       ) : null}

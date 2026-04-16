@@ -48,19 +48,23 @@ export default function StudyPage() {
       <p className="subtitle">Day 1~14 학습 자료 + 보강 자료 뷰어</p>
 
       <div className="layout-with-sidebar">
-        <aside className="sidebar">
+        <aside className="sidebar" role="tablist" aria-label="학습 주제">
           {FILES.map((f, i) => (
             <div
               key={i}
               className={`sidebar-item ${i === selectedIdx ? 'active' : ''}`}
               onClick={() => setSelectedIdx(i)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedIdx(i); } }}
+              role="tab"
+              tabIndex={0}
+              aria-selected={i === selectedIdx}
             >
               {f.name}
             </div>
           ))}
         </aside>
 
-        <div className="main-content">
+        <div className="main-content" role="tabpanel">
           {loading ? (
             <div className="card" style={{ textAlign: 'center', padding: 60 }}>
               불러오는 중...

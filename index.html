@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>정처기 학습</title>
+    <script>
+      try{const t=localStorage.getItem('jungchogi-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch{}
+    </script>
   </head>
   <body>
     <div id="root"></div>

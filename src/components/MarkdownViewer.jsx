@@ -1,9 +1,13 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useThemeContext } from '../hooks/useTheme';
 
 export default function MarkdownViewer({ content }) {
+  const { theme } = useThemeContext();
+  const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
+
   return (
     <div className="md-content">
       <ReactMarkdown
@@ -14,7 +18,7 @@ export default function MarkdownViewer({ content }) {
             if (!inline && match) {
               return (
                 <SyntaxHighlighter
-                  style={oneDark}
+                  style={syntaxTheme}
                   language={match[1]}
                   PreTag="div"
                   {...props}

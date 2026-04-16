@@ -4,6 +4,7 @@ import { parseQuiz } from '../utils/parseQuiz';
 import { parseBogang } from '../utils/parseBogang';
 import { saveProgress, loadProgress } from '../utils/storage';
 import useSwipe from '../hooks/useSwipe';
+import Icon from '../components/Icon';
 
 const CATEGORIES = ['전체', '데이터베이스', '소프트웨어공학', '디자인패턴/UML', '테스트', '보안/네트워크', 'OS/기타'];
 
@@ -129,12 +130,12 @@ export default function FlashcardPage() {
 
       {cards.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-          {filterMode === 'unknown' ? '모든 카드를 외웠습니다! 🎉' : '문제를 불러오는 중...'}
+          {filterMode === 'unknown' ? <><Icon name="party" size={24}/> 모든 카드를 외웠습니다!</> : '문제를 불러오는 중...'}
         </div>
       ) : current ? (
         <>
           <div className="flashcard-container" {...swipeHandlers}>
-            <div className={`flashcard ${flipped ? 'flipped' : ''} ${deck === 'bogang119' && flipped ? 'flashcard-tall' : ''}`} onClick={() => setFlipped(!flipped)}>
+            <div className={`flashcard ${flipped ? 'flipped' : ''} ${deck === 'bogang119' && flipped ? 'flashcard-tall' : ''}`} onClick={() => setFlipped(!flipped)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped(!flipped); } }} role="button" tabIndex={0} aria-label="카드 뒤집기">
               <div className="flashcard-face">
                 <span className="badge badge-primary" style={{ marginBottom: 16 }}>{current.category}</span>
                 <h2 style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: 1.6 }}>
@@ -151,11 +152,11 @@ export default function FlashcardPage() {
           </div>
 
           <div className="flashcard-nav">
-            <button className="btn-outline" onClick={prev} disabled={idx === 0}>◀ 이전</button>
-            <button className="btn-danger" onClick={() => markKnown(current.id, false)} style={{ padding: '10px 16px' }}>모름 ✕</button>
-            <span className="flashcard-counter">{idx + 1} / {cards.length}</span>
-            <button className="btn-success" onClick={() => { markKnown(current.id, true); next(); }} style={{ padding: '10px 16px' }}>외움 ✓</button>
-            <button className="btn-outline" onClick={next} disabled={idx === cards.length - 1}>다음 ▶</button>
+            <button className="btn-outline" onClick={prev} disabled={idx === 0} aria-label="이전 카드"><Icon name="chevron-left" size={16}/> 이전</button>
+            <button className="btn-danger" onClick={() => markKnown(current.id, false)} style={{ padding: '10px 16px' }} aria-label="모름 표시"><Icon name="x" size={16}/> 모름</button>
+            <span className="flashcard-counter" aria-live="polite">{idx + 1} / {cards.length}</span>
+            <button className="btn-success" onClick={() => { markKnown(current.id, true); next(); }} style={{ padding: '10px 16px' }} aria-label="외움 표시"><Icon name="check" size={16}/> 외움</button>
+            <button className="btn-outline" onClick={next} disabled={idx === cards.length - 1} aria-label="다음 카드">다음 <Icon name="chevron-right" size={16}/></button>
           </div>
         </>
       ) : null}

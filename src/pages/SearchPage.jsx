@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { parseBogang } from '../utils/parseBogang';
+import Icon from '../components/Icon';
+import { useThemeContext } from '../hooks/useTheme';
 
 const SOURCE_CONFIG = {
   quiz100: { label: '단답형 100선', badge: 'badge-primary', file: '정처기_단답형_100선.md', parser: 'quiz' },
@@ -13,6 +15,8 @@ const SOURCE_CONFIG = {
 };
 
 export default function SearchPage() {
+  const { theme } = useThemeContext();
+  const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [allItems, setAllItems] = useState([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -98,19 +102,20 @@ export default function SearchPage() {
       <p className="subtitle">전체 학습자료에서 키워드를 검색하세요</p>
 
       {/* 검색 입력 */}
-      <div className="search-box">
-        <span className="search-icon">🔍</span>
+      <div className="search-box" role="search">
+        <span className="search-icon"><Icon name="search" size={18}/></span>
         <input
           ref={inputRef}
           type="text"
           className="search-input"
+          aria-label="검색어 입력"
           placeholder={loading ? '데이터 로딩 중...' : '예: TCP, 디자인패턴, printf, 정규화...'}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           disabled={loading}
         />
         {query && (
-          <button className="search-clear" onClick={() => setQuery('')}>✕</button>
+          <button className="search-clear" onClick={() => setQuery('')}><Icon name="x" size={14}/></button>
         )}
       </div>
 
@@ -129,7 +134,7 @@ export default function SearchPage() {
 
       {/* 결과 수 */}
       {query.trim() && (
-        <div style={{ marginBottom: 16, color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+        <div style={{ marginBottom: 16, color: 'var(--text-dim)', fontSize: '0.9rem' }} aria-live="polite">
           {results.length}개 결과 {results.length > 50 && '(상위 50개 표시)'}
         </div>
       )}
@@ -137,7 +142,7 @@ export default function SearchPage() {
       {/* 결과 목록 */}
       {!query.trim() ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>🔍</div>
+          <div style={{ marginBottom: 16, color: 'var(--text-dim)' }}><Icon name="search" size={48}/></div>
           <p style={{ color: 'var(--text-dim)' }}>
             단답형 100선, 코드 트레이싱 40문제, 암기 119선 보강<br />
             총 {allItems.length}개 항목에서 검색합니다
@@ -145,7 +150,7 @@ export default function SearchPage() {
         </div>
       ) : results.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>😅</div>
+          <div style={{ marginBottom: 16, color: 'var(--text-dim)' }}><Icon name="frown" size={48}/></div>
           <p style={{ color: 'var(--text-dim)' }}>"{query}"에 대한 검색 결과가 없습니다</p>
         </div>
       ) : (
@@ -158,6 +163,10 @@ export default function SearchPage() {
             <div key={key} className="card search-result-card" style={{ marginBottom: 10 }}>
               <div
                 onClick={() => setExpandedId(isExpanded ? null : key)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : key); } }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
                 style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12 }}
               >
                 <div style={{ flex: 1 }}>
@@ -170,8 +179,8 @@ export default function SearchPage() {
                     {item.id}. {item.question || item.title}
                   </h3>
                 </div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '1rem', flexShrink: 0 }}>
-                  {isExpanded ? '▲' : '▼'}
+                <span style={{ color: 'var(--text-dim)', flexShrink: 0 }}>
+                  <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16}/>
                 </span>
               </div>
 
@@ -181,7 +190,7 @@ export default function SearchPage() {
                   {item.code && (
                     <SyntaxHighlighter
                       language={item.lang}
-                      style={oneDark}
+                      style={syntaxTheme}
                       customStyle={{ borderRadius: 8, fontSize: '0.85rem' }}
                     >
                       {item.code}
