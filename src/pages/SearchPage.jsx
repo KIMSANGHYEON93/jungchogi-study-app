@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { parseBogang } from '../utils/parseBogang';
+import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -28,9 +29,9 @@ export default function SearchPage() {
   // 전체 데이터 로드
   useEffect(() => {
     Promise.all([
-      fetch(`/data/${SOURCE_CONFIG.quiz100.file}`).then((r) => r.text()),
-      fetch(`/data/${SOURCE_CONFIG.codeDrill.file}`).then((r) => r.text()),
-      fetch(`/data/${SOURCE_CONFIG.bogang.file}`).then((r) => r.text()),
+      fetchMarkdown(SOURCE_CONFIG.quiz100.file),
+      fetchMarkdown(SOURCE_CONFIG.codeDrill.file),
+      fetchMarkdown(SOURCE_CONFIG.bogang.file),
     ]).then(([quizMd, codeMd, bogangMd]) => {
       const quizItems = parseQuiz(quizMd).map((q) => ({
         ...q,

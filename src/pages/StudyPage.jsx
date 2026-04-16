@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import MarkdownViewer from '../components/MarkdownViewer';
 import useStudyTimer from '../hooks/useStudyTimer';
+import { fetchMarkdown } from '../utils/mdCache';
 
 const FILES = [
   { name: 'Day 01 — C언어', file: '정처기_Day01_C언어.md' },
@@ -31,8 +32,7 @@ export default function StudyPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/data/${FILES[selectedIdx].file}`)
-      .then((r) => r.text())
+    fetchMarkdown(FILES[selectedIdx].file)
       .then((text) => {
         setContent(text);
         setLoading(false);

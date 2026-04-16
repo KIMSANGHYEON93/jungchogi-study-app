@@ -5,6 +5,7 @@ import { parseBogang } from '../utils/parseBogang';
 import { saveProgress, loadProgress } from '../utils/storage';
 import useSwipe from '../hooks/useSwipe';
 import useStudyTimer from '../hooks/useStudyTimer';
+import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 
 const CATEGORIES = ['전체', '데이터베이스', '소프트웨어공학', '디자인패턴/UML', '테스트', '보안/네트워크', 'OS/기타'];
@@ -28,8 +29,7 @@ export default function FlashcardPage() {
   // 덱 변경 시 데이터 로드
   useEffect(() => {
     const deckInfo = DECKS.find((d) => d.key === deck);
-    fetch(`/data/${deckInfo.file}`)
-      .then((r) => r.text())
+    fetchMarkdown(deckInfo.file)
       .then((text) => {
         const parsed = deckInfo.parser === 'quiz' ? parseQuiz(text) : parseBogang(text);
         setAllCards(parsed);
@@ -63,6 +63,19 @@ export default function FlashcardPage() {
 
   const next = useCallback(() => { setFlipped(false); setIdx((i) => Math.min(i + 1, cards.length - 1)); }, [cards.length]);
   const prev = useCallback(() => { setFlipped(false); setIdx((i) => Math.max(i - 1, 0)); }, []);
+
+  const shuffle = useCallback(() => {
+    setCards((prev) => {
+      const a = [...prev];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    });
+    setIdx(0);
+    setFlipped(false);
+  }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -128,6 +141,8 @@ export default function FlashcardPage() {
         <span style={{ margin: '0 8px', borderLeft: '1px solid var(--border)', height: 28 }} />
         <button className={`btn-outline ${filterMode === 'all' ? 'active' : ''}`} onClick={() => setFilterMode('all')}>전체</button>
         <button className={`btn-outline ${filterMode === 'unknown' ? 'active' : ''}`} onClick={() => setFilterMode('unknown')}>모르는 것만</button>
+        <span style={{ margin: '0 8px', borderLeft: '1px solid var(--border)', height: 28 }} />
+        <button className="btn-outline" onClick={shuffle} title="카드 순서 섞기"><Icon name="refresh" size={14}/> 섞기</button>
       </div>
 
       {cards.length === 0 ? (

@@ -5,6 +5,7 @@ import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
 import useStudyTimer from '../hooks/useStudyTimer';
+import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -41,8 +42,8 @@ export default function ExamPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/data/정처기_단답형_100선.md').then((r) => r.text()),
-      fetch('/data/정처기_코드트레이싱_드릴.md').then((r) => r.text()),
+      fetchMarkdown('정처기_단답형_100선.md'),
+      fetchMarkdown('정처기_코드트레이싱_드릴.md'),
     ]).then(([quizMd, codeMd]) => {
       setQuizPool(parseQuiz(quizMd).map((q) => ({ ...q, type: 'quiz' })));
       setCodePool(parseCodeDrill(codeMd).map((q) => ({ ...q, type: 'code' })));

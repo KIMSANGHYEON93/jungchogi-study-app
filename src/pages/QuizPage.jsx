@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { saveProgress, loadProgress, addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
 import useStudyTimer from '../hooks/useStudyTimer';
+import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -25,8 +26,7 @@ export default function QuizPage() {
   const [wrongIds, setWrongIds] = useState(new Set());
 
   useEffect(() => {
-    fetch('/data/정처기_코드트레이싱_드릴.md')
-      .then((r) => r.text())
+    fetchMarkdown('정처기_코드트레이싱_드릴.md')
       .then((text) => {
         const parsed = parseCodeDrill(text);
         setAllProblems(parsed);
