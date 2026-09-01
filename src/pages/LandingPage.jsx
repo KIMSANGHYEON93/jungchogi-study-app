@@ -119,10 +119,7 @@ function useCountUp(end, duration, shouldStart) {
   const frameRef = useRef(null);
 
   useEffect(() => {
-    if (!shouldStart) {
-      setCount(0);
-      return;
-    }
+    if (!shouldStart) return;
 
     let startTime = null;
 
@@ -143,7 +140,8 @@ function useCountUp(end, duration, shouldStart) {
     };
   }, [end, duration, shouldStart]);
 
-  return count;
+  // 시작 전에는 0 을 보여준다 — effect 에서 동기 리셋하지 않기 위해 파생값으로 계산
+  return shouldStart ? count : 0;
 }
 
 function StatCard({ label, value, suffix, shouldAnimate }) {
@@ -162,7 +160,10 @@ function StatCard({ label, value, suffix, shouldAnimate }) {
 }
 
 export default function LandingPage() {
-  const [statsVisible, setStatsVisible] = useState(false);
+  // 감소된 모션 선호는 마운트 시점에 한 번만 읽는다 — effect 에서 setState 하지 않기 위해
+  const [statsVisible, setStatsVisible] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
   const [visibleFeatures, setVisibleFeatures] = useState(new Set());
   const [visibleSteps, setVisibleSteps] = useState(new Set());
   const [navScrolled, setNavScrolled] = useState(false);
@@ -191,11 +192,8 @@ export default function LandingPage() {
 
   // Stats intersection observer
   useEffect(() => {
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReduced) {
-      setStatsVisible(true);
-      return;
-    }
+    // 감소된 모션 선호로 이미 표시 상태면 관찰자가 필요 없다
+    if (statsVisible) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -209,7 +207,7 @@ export default function LandingPage() {
 
     if (statsRef.current) observer.observe(statsRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [statsVisible]);
 
   // Features intersection observer
   useEffect(() => {

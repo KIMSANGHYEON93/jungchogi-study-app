@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
-import { getWrongNotes, removeWrongNote, updateWrongNote, clearAllWrongNotes } from '../utils/storage';
+import { getWrongNotes, removeWrongNote, markWrongNoteReviewed, clearAllWrongNotes } from '../utils/storage';
 import Icon from '../components/Icon';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -12,7 +12,7 @@ const FILTER_OPTIONS = ['전체', '코드퀴즈', '모의고사', '미복습', '
 export default function WrongNotePage() {
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotes] = useState(getWrongNotes);
   const [filter, setFilter] = useState('전체');
   const [expandedId, setExpandedId] = useState(null);
   const [retryMode, setRetryMode] = useState(null); // { source, id }
@@ -20,8 +20,6 @@ export default function WrongNotePage() {
   const [retrySubmitted, setRetrySubmitted] = useState(false);
 
   const reload = useCallback(() => setNotes(getWrongNotes()), []);
-
-  useEffect(() => { reload(); }, [reload]);
 
   const filtered = notes.filter((n) => {
     if (filter === '코드퀴즈') return n.source === 'quiz';
@@ -44,10 +42,7 @@ export default function WrongNotePage() {
 
   const handleRetrySubmit = (note) => {
     setRetrySubmitted(true);
-    updateWrongNote(note.source, note.id, {
-      reviewCount: note.reviewCount + 1,
-      lastReviewed: Date.now(),
-    });
+    markWrongNoteReviewed(note.source, note.id);
     reload();
   };
 

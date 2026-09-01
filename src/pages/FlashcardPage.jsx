@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseBogang } from '../utils/parseBogang';
@@ -19,7 +19,7 @@ export default function FlashcardPage() {
   useStudyTimer();
   const [deck, setDeck] = useState('quiz100');
   const [allCards, setAllCards] = useState([]);
-  const [cards, setCards] = useState([]);
+  const [shuffled, setShuffled] = useState(null);
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [category, setCategory] = useState('전체');
@@ -33,7 +33,6 @@ export default function FlashcardPage() {
       .then((text) => {
         const parsed = deckInfo.parser === 'quiz' ? parseQuiz(text) : parseBogang(text);
         setAllCards(parsed);
-        setCards(parsed);
         setKnown(loadProgress(`flashcard_known_${deck}`, {}));
         setIdx(0);
         setFlipped(false);
@@ -42,18 +41,16 @@ export default function FlashcardPage() {
       });
   }, [deck]);
 
-  useEffect(() => {
-    let filtered = allCards;
-    if (category !== '전체') {
-      filtered = filtered.filter((c) => c.category === category);
-    }
-    if (filterMode === 'unknown') {
-      filtered = filtered.filter((c) => !known[c.id]);
-    }
-    setCards(filtered);
-    setIdx(0);
-    setFlipped(false);
-  }, [category, filterMode, allCards, known]);
+  // 필터 결과는 파생 상태 — effect 없이 렌더 중 계산한다
+  const filtered = useMemo(() => {
+    let f = allCards;
+    if (category !== '전체') f = f.filter((c) => c.category === category);
+    if (filterMode === 'unknown') f = f.filter((c) => !known[c.id]);
+    return f;
+  }, [allCards, category, filterMode, known]);
+
+  // 셔플은 그 대상이 지금의 filtered 와 같을 때만 유효하다
+  const cards = shuffled && shuffled.source === filtered ? shuffled.order : filtered;
 
   const markKnown = useCallback((id, val) => {
     const next = { ...known, [id]: val };
@@ -65,17 +62,20 @@ export default function FlashcardPage() {
   const prev = useCallback(() => { setFlipped(false); setIdx((i) => Math.max(i - 1, 0)); }, []);
 
   const shuffle = useCallback(() => {
-    setCards((prev) => {
-      const a = [...prev];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    });
+    const a = [...cards];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    // 셔플 결과를 현재 filtered 에 묶어 둔다 — 필터가 바뀌면 자동 폐기된다
+    setShuffled({ source: filtered, order: a });
     setIdx(0);
     setFlipped(false);
-  }, []);
+  }, [cards, filtered]);
+
+  // 필터를 바꾸면 첫 카드로 되돌린다 — effect 대신 이벤트 핸들러에서 리셋
+  const changeCategory = (cat) => { setCategory(cat); setIdx(0); setFlipped(false); };
+  const changeFilterMode = (mode) => { setFilterMode(mode); setIdx(0); setFlipped(false); };
 
   useEffect(() => {
     const handler = (e) => {
@@ -93,7 +93,9 @@ export default function FlashcardPage() {
   });
 
   const knownCount = allCards.filter((c) => known[c.id]).length;
-  const current = cards[idx];
+  // 모르는 것만 필터에서 카드를 외움 처리하면 목록이 줄어 idx 가 범위를 벗어날 수 있다
+  const idxInRange = idx < cards.length ? idx : 0;
+  const current = cards[idxInRange];
 
   return (
     <div className="page">
@@ -134,13 +136,13 @@ export default function FlashcardPage() {
 
       <div className="filter-bar">
         {CATEGORIES.map((cat) => (
-          <button key={cat} className={`btn-outline ${category === cat ? 'active' : ''}`} onClick={() => setCategory(cat)}>
+          <button key={cat} className={`btn-outline ${category === cat ? 'active' : ''}`} onClick={() => changeCategory(cat)}>
             {cat}
           </button>
         ))}
         <span style={{ margin: '0 8px', borderLeft: '1px solid var(--border)', height: 28 }} />
-        <button className={`btn-outline ${filterMode === 'all' ? 'active' : ''}`} onClick={() => setFilterMode('all')}>전체</button>
-        <button className={`btn-outline ${filterMode === 'unknown' ? 'active' : ''}`} onClick={() => setFilterMode('unknown')}>모르는 것만</button>
+        <button className={`btn-outline ${filterMode === 'all' ? 'active' : ''}`} onClick={() => changeFilterMode('all')}>전체</button>
+        <button className={`btn-outline ${filterMode === 'unknown' ? 'active' : ''}`} onClick={() => changeFilterMode('unknown')}>모르는 것만</button>
         <span style={{ margin: '0 8px', borderLeft: '1px solid var(--border)', height: 28 }} />
         <button className="btn-outline" onClick={shuffle} title="카드 순서 섞기"><Icon name="refresh" size={14}/> 섞기</button>
       </div>
@@ -169,11 +171,11 @@ export default function FlashcardPage() {
           </div>
 
           <div className="flashcard-nav">
-            <button className="btn-outline" onClick={prev} disabled={idx === 0} aria-label="이전 카드"><Icon name="chevron-left" size={16}/> 이전</button>
+            <button className="btn-outline" onClick={prev} disabled={idxInRange === 0} aria-label="이전 카드"><Icon name="chevron-left" size={16}/> 이전</button>
             <button className="btn-danger" onClick={() => markKnown(current.id, false)} style={{ padding: '10px 16px' }} aria-label="모름 표시"><Icon name="x" size={16}/> 모름</button>
-            <span className="flashcard-counter" aria-live="polite">{idx + 1} / {cards.length}</span>
+            <span className="flashcard-counter" aria-live="polite">{idxInRange + 1} / {cards.length}</span>
             <button className="btn-success" onClick={() => { markKnown(current.id, true); next(); }} style={{ padding: '10px 16px' }} aria-label="외움 표시"><Icon name="check" size={16}/> 외움</button>
-            <button className="btn-outline" onClick={next} disabled={idx === cards.length - 1} aria-label="다음 카드">다음 <Icon name="chevron-right" size={16}/></button>
+            <button className="btn-outline" onClick={next} disabled={idxInRange === cards.length - 1} aria-label="다음 카드">다음 <Icon name="chevron-right" size={16}/></button>
           </div>
         </>
       ) : null}

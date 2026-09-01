@@ -17,7 +17,6 @@ export default function QuizPage() {
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
   const [allProblems, setAllProblems] = useState([]);
-  const [problems, setProblems] = useState([]);
   const [idx, setIdx] = useState(0);
   const [lang, setLang] = useState('전체');
   const [userAnswer, setUserAnswer] = useState('');
@@ -30,21 +29,14 @@ export default function QuizPage() {
       .then((text) => {
         const parsed = parseCodeDrill(text);
         setAllProblems(parsed);
-        setProblems(parsed);
         setResults(loadProgress('quiz_results', {}));
         const savedWrong = getWrongNotes().filter((n) => n.source === 'quiz').map((n) => n.id);
         setWrongIds(new Set(savedWrong));
       });
   }, []);
 
-  useEffect(() => {
-    const filtered = lang === '전체' ? allProblems : allProblems.filter((p) => p.lang === lang);
-    setProblems(filtered);
-    setIdx(0);
-    setUserAnswer('');
-    setSubmitted(false);
-  }, [lang, allProblems]);
-
+  // lang 필터는 파생 상태 — effect 없이 렌더 중 계산한다
+  const problems = lang === '전체' ? allProblems : allProblems.filter((p) => p.lang === lang);
   const current = problems[idx];
 
   const handleSubmit = () => {
@@ -59,6 +51,12 @@ export default function QuizPage() {
     setIdx(newIdx);
     setUserAnswer('');
     setSubmitted(false);
+  };
+
+  // 언어를 바꾸면 첫 문제로 되돌린다 — effect 대신 이벤트 핸들러에서 리셋
+  const changeLang = (l) => {
+    setLang(l);
+    goTo(0);
   };
 
   const correctCount = Object.keys(results).length;
@@ -90,7 +88,7 @@ export default function QuizPage() {
 
       <div className="filter-bar">
         {LANGS.map((l) => (
-          <button key={l} className={`btn-outline ${lang === l ? 'active' : ''}`} onClick={() => setLang(l)}>
+          <button key={l} className={`btn-outline ${lang === l ? 'active' : ''}`} onClick={() => changeLang(l)}>
             {LANG_LABEL[l]}
           </button>
         ))}

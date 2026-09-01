@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadProgress, saveProgress, getWrongNotes, getExamDate, setExamDate, getWeeklyStudyTime, addStudyTime, getSpacedRepetitionDue, getStorageUsage, formatBytes } from '../utils/storage';
 import Icon from '../components/Icon';
@@ -42,23 +42,13 @@ function categorizeWrongNotes(notes) {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [flashcardKnown, setFlashcardKnown] = useState({});
-  const [quizResults, setQuizResults] = useState({});
-  const [wrongNotes, setWrongNotes] = useState([]);
-  const [dayChecks, setDayChecks] = useState({});
-  const [examDate, setExamDateState] = useState('');
+  const [flashcardKnown] = useState(() => loadProgress('flashcard_known_quiz100', {}));
+  const [quizResults] = useState(() => loadProgress('quiz_results', {}));
+  const [wrongNotes] = useState(getWrongNotes);
+  const [dayChecks, setDayChecks] = useState(() => loadProgress('day_checks', {}));
+  const [examDate, setExamDateState] = useState(() => getExamDate() || '');
   const [showDateInput, setShowDateInput] = useState(false);
-  const [spacedDue, setSpacedDue] = useState([]);
-  const studyStartRef = useRef(Date.now());
-
-  useEffect(() => {
-    setFlashcardKnown(loadProgress('flashcard_known_quiz100', {}));
-    setQuizResults(loadProgress('quiz_results', {}));
-    setWrongNotes(getWrongNotes());
-    setDayChecks(loadProgress('day_checks', {}));
-    setExamDateState(getExamDate() || '');
-    setSpacedDue(getSpacedRepetitionDue());
-  }, []);
+  const [spacedDue] = useState(getSpacedRepetitionDue);
 
   // 학습 시간 추적: 페이지 떠날 때 기록
   useEffect(() => {

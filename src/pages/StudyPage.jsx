@@ -27,21 +27,24 @@ const FILES = [
 export default function StudyPage() {
   useStudyTimer();
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(false);
+  // 로드 결과에 해당 인덱스를 함께 담아 loading/content 를 파생 상태로 계산한다
+  const [loaded, setLoaded] = useState({ idx: -1, text: '' });
+  const loading = loaded.idx !== selectedIdx;
+  const content = loading ? '' : loaded.text;
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     fetchMarkdown(FILES[selectedIdx].file)
       .then((text) => {
-        setContent(text);
-        setLoading(false);
+        if (cancelled) return;
+        setLoaded({ idx: selectedIdx, text });
         window.scrollTo(0, 0);
       })
       .catch(() => {
-        setContent('파일을 불러올 수 없습니다.');
-        setLoading(false);
+        if (cancelled) return;
+        setLoaded({ idx: selectedIdx, text: '파일을 불러올 수 없습니다.' });
       });
+    return () => { cancelled = true; };
   }, [selectedIdx]);
 
   return (

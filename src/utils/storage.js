@@ -54,9 +54,12 @@ export function removeWrongNote(source, id) {
   saveProgress(WRONG_NOTES_KEY, notes);
 }
 
-export function updateWrongNote(source, id, updates) {
+// 복습 완료 처리 — 타임스탬프는 addWrongNote 의 addedAt 과 마찬가지로 저장 계층이 소유한다
+export function markWrongNoteReviewed(source, id) {
   const notes = getWrongNotes().map((n) =>
-    n.source === source && n.id === id ? { ...n, ...updates } : n
+    n.source === source && n.id === id
+      ? { ...n, reviewCount: n.reviewCount + 1, lastReviewed: Date.now() }
+      : n
   );
   saveProgress(WRONG_NOTES_KEY, notes);
 }
