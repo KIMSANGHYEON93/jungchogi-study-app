@@ -34,7 +34,7 @@ export function parseCodeDrill(mdText) {
       // 첫 번째 코드 블록 찾기
       while (j < lines.length && !lines[j].startsWith('```')) j++;
       if (j < lines.length) {
-        const langLine = lines[j]; // ```c, ```java, etc
+        // lines[j] 는 여는 코드펜스(```c, ```java 등) — 언어 표기는 쓰지 않으므로 건너뜀
         j++;
         while (j < lines.length && !lines[j].startsWith('```')) {
           code += lines[j] + '\n';
