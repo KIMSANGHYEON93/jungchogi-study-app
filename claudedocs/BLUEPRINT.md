@@ -16,7 +16,7 @@
 | 저장소 | `localStorage` 전용 (`jungchogi_` 접두사), 서버 없음 |
 | 배포 | Vercel 정적 호스팅 (`vercel.json` SPA rewrite, `/data/` 제외) |
 | 디자인 | VIVARA 디자인 시스템 (`design-system/vivara/MASTER.md`) |
-| 품질 | ESLint 9 + react-hooks 7 → **0 errors**. 테스트 프레임워크 **없음**, CI **없음** |
+| 품질 | ESLint 9 + react-hooks 7 → **0 errors**. Vitest 4 + jsdom → **81 tests**(파서 3종·storage). GitHub Actions CI(lint→test→build) |
 | 규모 | `src/` 약 3,076줄, 페이지 9개, 훅 3개, 파서 3개 |
 
 ### 1.2 구현 완료 기능 (git log 기준)
@@ -51,9 +51,9 @@
 ### 1.4 갭 목록
 | # | 갭 | 영향 |
 |---|---|---|
-| G1 | README가 Vite 템플릿 원본 → 진행 상태 파악 불가 | 이 문서로 해소 |
-| G2 | 테스트 0건 (파서·스토리지 포함) | 회귀 방지 불가, AI 기능 추가 시 위험 |
-| G3 | CI 없음 | lint/build 검증이 로컬 수동 |
+| ~~G1~~ | ~~README가 Vite 템플릿 원본 → 진행 상태 파악 불가~~ | ✅ Phase 0 해소 |
+| ~~G2~~ | ~~테스트 0건 (파서·스토리지 포함)~~ | ✅ Phase 0 해소 (81 tests) |
+| ~~G3~~ | ~~CI 없음~~ | ✅ Phase 0 해소 (`.github/workflows/ci.yml`) |
 | G4 | 서버 없음 → API 키를 둘 곳이 없음 | **AI 도입의 선결 과제** |
 | G5 | 도메인 타입 미정의 (JS, 파서마다 다른 shape) | AI 도구(tool) 스키마 정의 시 정합성 문제 |
 | G6 | 인증/사용량 제한 없음 (공개 URL) | AI 엔드포인트 노출 시 비용 남용 위험 |
@@ -174,12 +174,29 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 
 | Phase | 목표 | 산출물 | 완료 조건 | 상태 |
 |---|---|---|---|---|
-| **0. 기반 정비** | 문서·테스트·CI | `README.md` 현행화, 이 문서, Vitest(파서 3종·storage), GitHub Actions(lint/test/build) | CI 녹색, 파서 테스트 커버 | ⏳ (문서 완료, 나머지 대기) |
+| **0. 기반 정비** | 문서·테스트·CI | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 81 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build) | lint 0 errors · test 81/81 · build 성공 (로컬 확인) | ✅ |
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, 오답노트·퀴즈 페이지에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | ⏳ |
 | **2. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
 | **3. 학습 플래너 에이전트** | 핵심 에이전트 | `api/ai/plan.js` + Tool Runner, 도구 5종, `StudyPlan` 저장, 대시보드 "오늘의 계획" 카드 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | ⏳ |
 | **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
+
+### Phase 0 에서 드러난 파서 결함 (테스트로 기록됨)
+
+테스트를 씌우면서 확인된 항목. 앞의 2건은 실제 콘텐츠 파싱 결과가 바뀌지 않음을 확인하고 고쳤고, 나머지는 **현행 동작을 테스트로 고정만 해두었다**(수정 시 사용자에게 보이는 내용이 바뀌므로 별도 결정 필요).
+
+| # | 결함 | 현재 영향 | 처리 |
+|---|---|---|---|
+| P1 | `<details>`/코드펜스가 없는 문항이 다음 문항의 정답·코드를 가져감 | 잠재 (현 콘텐츠에서는 미발생) | ✅ 수정 (`9a85fcc`) |
+| P2 | `split('\n')` 이라 CRLF 문서에서 본문에 `\r` 잔류 | 잠재 (autocrlf=true 인 Windows 클론) | ✅ 수정 (`9a85fcc`) |
+| P3 | SQL 드릴 10문제의 `code` 가 실제 쿼리가 아니라 앞의 예제 테이블 — 첫 코드펜스만 읽는다 | **실발생**, `/quiz` 에서 SQL 문제의 쿼리가 안 보임 | 미수정 |
+| P4 | 함정 라벨 7종 하드코딩 → `**최다출제 함정**` 누락 (40문제 중 J-01) | 실발생, 함정이 answer 본문으로 흘러감 | 미수정 |
+| P5 | `출력` 낱말 경계가 없어 `출력 형식은…` 같은 문장 뒤를 `expectedOutput` 으로 오인 | 잠재 | 미수정 |
+| P6 | `loadProgress` 에 try/catch 가 없어 손상된 JSON 이 예외로 터짐 | 잠재 (ErrorBoundary 가 받음) | 미수정 |
+| P7 | `saveProgress` 가 `QuotaExceededError` 를 처리하지 않음 | 잠재 (5MB 근접 시) | 미수정 |
+| P8 | 학습시간 날짜 키는 UTC, 요일 라벨은 로컬 시각 기준 → 자정 근처 불일치 | 잠재 | 미수정 |
+
+---
 
 ### Phase 1 상세 작업 순서 (병렬 가능 항목 표기)
 1. `npm i @anthropic-ai/sdk` · `.env.example`(`ANTHROPIC_API_KEY`, `AI_ACCESS_CODE`) · `.gitignore`에 `.env*` 확인
@@ -216,6 +233,7 @@ Phase 1 완료 시 `response.usage`를 로깅해 이 표를 실측치로 교체�
 2. **접근 제어 수준**: 접근 코드로 충분한지, 본인만 쓰는 앱이면 코드 없이 Vercel 배포 보호(Password Protection)로 대체할지
 3. **TypeScript 전환**: Phase 0에서 도메인 타입만 `.d.ts`로 둘지, 전체 TS 전환까지 갈지
 4. **Phase 순서**: 플래너(3)를 채점(2)보다 앞당길지 — 플래너가 이 앱의 차별점이라면 2↔3 교체 가능
+5. **파서 결함 P3~P8 처리 시점**: §5 표의 미수정 항목을 Phase 1 앞에 별도로 닫을지, 해당 화면을 손대는 Phase 에 묶을지 (특히 P3 은 실사용자에게 보이는 결함)
 
 ---
 

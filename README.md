@@ -4,9 +4,10 @@ Vite + React 19 기반 순수 클라이언트 SPA. 14일 학습 문서, 플래�
 
 > 진행 단계·로드맵·에이전트 AI 적용 계획: **[claudedocs/BLUEPRINT.md](claudedocs/BLUEPRINT.md)**
 
-## 현재 상태 (2026-09-02, `283e544`)
+## 현재 상태 (2026-09-02)
 - 기능 개발 완료 후 VIVARA 디자인 적용, react-hooks lint 0 errors
-- 테스트·CI 없음, AI 기능 없음 → 블루프린트 Phase 0~1에서 착수 예정
+- 블루프린트 **Phase 0(기반 정비) 완료** — Vitest 81 tests, GitHub Actions CI(lint→test→build)
+- AI 기능 없음 → 블루프린트 Phase 1에서 착수 예정
 
 ## 기능
 | 경로 | 기능 |
@@ -32,9 +33,25 @@ design-system/vivara/ 디자인 토큰·규칙
 ## 실행
 ```bash
 npm install
-npm run dev      # 개발 서버
-npm run lint     # ESLint (0 errors 유지)
-npm run build    # dist/ 생성
+npm run dev         # 개발 서버
+npm run lint        # ESLint (0 errors 유지)
+npm test            # Vitest 1회 실행
+npm run test:watch  # Vitest watch 모드
+npm run build       # dist/ 생성
 ```
 
 배포: Vercel. `vercel.json`이 `/data/`를 제외한 모든 경로를 `index.html`로 rewrite한다.
+
+## 테스트
+`tests/`에 Vitest 특성 테스트(characterization test)를 둔다. 파서는 node 환경, `localStorage`가 필요한 파일만 상단 `// @vitest-environment jsdom` 주석으로 jsdom을 쓴다.
+
+| 파일 | 대상 |
+|---|---|
+| `tests/parseQuiz.test.js` | 단답형 파서 — 문항 추출, 카테고리 매핑, details 경계 |
+| `tests/parseBogang.test.js` | 보강 파서 — id 패딩, 본문 경계, 키워드→카테고리 |
+| `tests/parseCodeDrill.test.js` | 코드드릴 파서 — Part별 lang, 코드펜스, 함정 라벨, 출력 추출 |
+| `tests/storage.test.js` | `localStorage` 계층 — 접두사·직렬화·오답노트·간격반복·용량 |
+
+픽스처(`tests/fixtures/*.md`)는 `public/data`의 실제 콘텐츠에서 발췌했다.
+
+CI: `.github/workflows/ci.yml` — main push와 main 대상 PR에서 Node 22로 lint → test → build를 순차 실행한다.
