@@ -177,7 +177,7 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 | Phase | 목표 | 산출물 | 완료 조건 | 상태 |
 |---|---|---|---|---|
 | **0. 기반 정비** | 문서·테스트·CI·드러난 결함 해소 | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 93 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build), 파서·스토리지 결함 P1~P8 수정 | lint 0 errors · test 93/93 · build 성공 (로컬 확인) | ✅ |
-| **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, 오답노트·퀴즈 페이지에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | ⏳ |
+| **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, `AiExplainPanel`, `domain/aiSource.js`, 오답노트·코드퀴즈에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | 🔷 **코드 완료 · 라이브 검증 대기** (구현·테스트 267/267·lint·build 통과. 실제 API 호출은 키가 있는 환경에서 `.env.example` 하단 6단계 절차를 밟아야 닫힌다) |
 | **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner, 도구 5종, `StudyPlan` 저장, 대시보드 "오늘의 계획" 카드 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | ⏳ |
 | **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
 | **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
