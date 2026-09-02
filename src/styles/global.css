@@ -1801,3 +1801,85 @@ html { scroll-behavior: smooth; }
   .flashcard { min-height: 220px; }
   .dashboard-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
+
+/* ─── AI 해설 패널 ─── */
+.ai-explain {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
+.ai-explain-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.ai-explain-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-right: auto;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.ai-explain-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+
+.ai-explain-output {
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.ai-explain-output .md-content > *:last-child {
+  margin-bottom: 0;
+}
+
+/* 스트리밍 중임을 알리는 커서 — 본문 흐름을 밀지 않도록 인라인 블록 */
+.ai-explain-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ai-explain-caret {
+    animation: ai-explain-blink 1s steps(2, start) infinite;
+  }
+  @keyframes ai-explain-blink {
+    50% { opacity: 0; }
+  }
+}
+
+.ai-explain-error {
+  margin-top: var(--space-sm);
+}
+
+.ai-explain-error-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.ai-explain-hint {
+  margin-top: var(--space-sm);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}

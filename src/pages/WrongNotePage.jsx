@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import { getWrongNotes, removeWrongNote, markWrongNoteReviewed, clearAllWrongNotes } from '../utils/storage';
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
+import AiExplainPanel from '../components/AiExplainPanel';
+import { toAiSource } from '../domain/aiSource';
 import { useThemeContext } from '../hooks/useTheme';
 
 const SOURCE_LABEL = { quiz: '코드퀴즈', exam: '모의고사' };
@@ -224,6 +226,13 @@ export default function WrongNotePage() {
                       삭제
                     </button>
                   </div>
+
+                  {/* 대응하는 교재 출처를 못 찾으면 toAiSource 가 null 을 주고 패널은 아무것도 그리지 않는다 */}
+                  <AiExplainPanel
+                    source={toAiSource(note)}
+                    id={note.id}
+                    userAnswer={note.userAnswer}
+                  />
                 </div>
               )}
             </div>

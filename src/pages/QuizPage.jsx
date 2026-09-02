@@ -8,6 +8,8 @@ import useStudyTimer from '../hooks/useStudyTimer';
 import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
+import AiExplainPanel from '../components/AiExplainPanel';
+import { AI_SOURCE } from '../domain/aiSource';
 import { useThemeContext } from '../hooks/useTheme';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
@@ -172,6 +174,18 @@ export default function QuizPage() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* 기존 풀이 블록(aria-live)의 바깥에 둔다 — 라이브 영역이 겹치면
+                스크린리더가 델타마다 끼어든다. 문항이 바뀌면 key 로 새로 마운트되고,
+                진행 중이던 스트리밍은 언마운트에서 취소된다. */}
+            {submitted && (
+              <AiExplainPanel
+                key={current.id}
+                source={AI_SOURCE.CODEDRILL}
+                id={current.id}
+                userAnswer={userAnswer}
+              />
             )}
           </div>
 
