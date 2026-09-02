@@ -201,9 +201,21 @@ export async function streamTutor(request, options = {}) {
     }
   };
 
+  // 취소 응답성은 본문 스트림에 기대지 않는다.
+  // 실제 fetch 는 abort 시 본문을 AbortError 로 터뜨리지만, 그걸 기다리는 사이
+  // 화면이 "생성 중"에 붙잡혀 있으면 안 된다 — read 와 abort 를 경주시킨다.
+  const ABORTED = Symbol('aborted');
+  const abortRace = signal
+    ? new Promise((resolve) => {
+        signal.addEventListener('abort', () => resolve(ABORTED), { once: true });
+      })
+    : null;
+
   try {
     while (!done) {
-      const { value, done: streamDone } = await reader.read();
+      const chunk = abortRace ? await Promise.race([reader.read(), abortRace]) : await reader.read();
+      if (chunk === ABORTED) return { text, usage: null, aborted: true };
+      const { value, done: streamDone } = chunk;
       if (streamDone) {
         // CRLF 를 쓰는 서버가 있어 프레임 경계 판정 전에 \n 으로 통일한다.
         buffer = buffer.replace(/\r\n/g, '\n');

@@ -344,6 +344,27 @@ describe('streamTutor — 취소', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('본문 스트림이 abort 에 반응하지 않아도 즉시 취소로 끝난다', async () => {
+    // 실제 fetch 는 abort 시 본문 스트림을 AbortError 로 터뜨리지만,
+    // 그걸 기다리다 UI 가 "생성 중"에 멈춰 있으면 안 된다.
+    const controller = new AbortController();
+    let streamCtrl;
+    fetchMock.mockResolvedValue(
+      new Response(new ReadableStream({ start(c) { streamCtrl = c; } }), { status: 200 })
+    );
+
+    const promise = streamTutor(REQUEST, {
+      signal: controller.signal,
+      onDelta: () => controller.abort(),
+    });
+    streamCtrl.enqueue(encoder.encode('data: {"delta":"부분"}\n\n'));
+
+    const result = await promise;
+
+    expect(result.aborted).toBe(true);
+    expect(result.text).toBe('부분');
+  });
+
   it('fetch 자체가 AbortError 로 거절돼도 취소로 끝난다', async () => {
     const controller = new AbortController();
     fetchMock.mockImplementation(() => {
