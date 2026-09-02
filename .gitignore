@@ -25,3 +25,12 @@ dist-ssr
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# 환경변수 — API 키가 들어가므로 절대 커밋하지 않는다.
+# .env.example 은 자리표시자만 담으므로 예외로 추적한다.
+.env
+.env.*
+!.env.example
+
+# Vercel CLI (vercel dev / vercel link)
+.vercel
