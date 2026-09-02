@@ -7,6 +7,7 @@ import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { parseBogang } from '../utils/parseBogang';
 import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
+import ProblemContext from '../components/ProblemContext';
 import { useThemeContext } from '../hooks/useTheme';
 
 const SOURCE_CONFIG = {
@@ -42,7 +43,7 @@ export default function SearchPage() {
       const codeItems = parseCodeDrill(codeMd).map((q) => ({
         ...q,
         source: 'codeDrill',
-        searchText: `${q.title} ${q.code} ${q.answer} ${q.pitfall || ''} ${q.lang}`.toLowerCase(),
+        searchText: `${q.title} ${q.context} ${q.code} ${q.answer} ${q.pitfall || ''} ${q.lang}`.toLowerCase(),
       }));
       const bogangItems = parseBogang(bogangMd).map((q) => ({
         ...q,
@@ -190,6 +191,7 @@ export default function SearchPage() {
 
                 {isExpanded && (
                   <div style={{ marginTop: 16 }}>
+                    <ProblemContext text={item.context} />
                     {item.code && (
                       <SyntaxHighlighter
                         language={item.lang}

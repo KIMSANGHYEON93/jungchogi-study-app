@@ -1,4 +1,4 @@
-// 코드트레이싱_드릴.md → [{id, title, code, lang, answer, pitfall}]
+// 코드트레이싱_드릴.md → [{id, title, context, code, lang, answer, expectedOutput, pitfall}]
 export function parseCodeDrill(mdText) {
   const problems = [];
 
@@ -33,21 +33,47 @@ export function parseCodeDrill(mdText) {
       let end = i + 1;
       while (end < lines.length && !lines[end].startsWith('### ')) end++;
 
-      // 코드 블록 수집
-      let code = '';
+      // 지문 영역: <details> 직전까지. 정답 블록 안의 코드펜스를 문제 코드로
+      // 오인하지 않도록 경계를 둔다 (S-05·S-08 은 sql 펜스가 정답 쪽에만 있다).
+      let detailsStart = i + 1;
+      while (detailsStart < end && !lines[detailsStart].includes('<details>')) detailsStart++;
+
+      // 지문의 코드펜스를 모두 수집한다
+      const blocks = [];
       let j = i + 1;
-      // 첫 번째 코드 블록 찾기
-      while (j < end && !lines[j].startsWith('```')) j++;
-      if (j < end) {
-        // lines[j] 는 여는 코드펜스(```c, ```java 등) — 언어 표기는 쓰지 않으므로 건너뜀
-        j++;
-        while (j < end && !lines[j].startsWith('```')) {
-          code += lines[j] + '\n';
+      while (j < detailsStart) {
+        if (lines[j].startsWith('```')) {
+          // lines[j] 는 여는 코드펜스(```c, ```sql 등) — 뒤에 붙은 언어 표기를 태그로 쓴다
+          const tag = lines[j].slice(3).trim();
+          const body = [];
           j++;
+          while (j < detailsStart && !lines[j].startsWith('```')) {
+            body.push(lines[j]);
+            j++;
+          }
+          blocks.push({ tag, text: body.join('\n').trim() });
         }
+        j++;
       }
 
+      // 문제의 코드 = 언어 태그가 붙은 마지막 펜스, 태그가 하나도 없으면 마지막 펜스.
+      // SQL 문제는 [예제 테이블(태그 없음), 쿼리(```sql)] 두 펜스라 쿼리가 code 가 된다.
+      // 나머지 펜스(예제 테이블·조건 지문)는 context 로 보존해 화면에 함께 띄운다.
+      let codeIdx = blocks.length - 1;
+      for (let k = blocks.length - 1; k >= 0; k--) {
+        if (blocks[k].tag) {
+          codeIdx = k;
+          break;
+        }
+      }
+      const code = codeIdx >= 0 ? blocks[codeIdx].text : '';
+      const context = blocks
+        .filter((_, k) => k !== codeIdx)
+        .map((b) => b.text)
+        .join('\n\n');
+
       // details 블록 내 정답 + 함정
+      j = detailsStart;
       let answer = '';
       let pitfall = '';
       let inDetails = false;
@@ -92,7 +118,8 @@ export function parseCodeDrill(mdText) {
       problems.push({
         id,
         title,
-        code: code.trim(),
+        context,
+        code,
         lang: currentLang,
         answer: answer.trim(),
         expectedOutput,

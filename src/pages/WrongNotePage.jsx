@@ -4,6 +4,7 @@ import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/pris
 import ReactMarkdown from 'react-markdown';
 import { getWrongNotes, removeWrongNote, markWrongNoteReviewed, clearAllWrongNotes } from '../utils/storage';
 import Icon from '../components/Icon';
+import ProblemContext from '../components/ProblemContext';
 import { useThemeContext } from '../hooks/useTheme';
 
 const SOURCE_LABEL = { quiz: '코드퀴즈', exam: '모의고사' };
@@ -148,6 +149,7 @@ export default function WrongNotePage() {
               {isExpanded && (
                 <div style={{ marginTop: 16 }}>
                   {/* Code block for code type */}
+                  {note.type === 'code' && <ProblemContext text={note.context} fontSize="0.9rem" />}
                   {note.type === 'code' && note.code && (
                     <SyntaxHighlighter
                       language={note.lang}

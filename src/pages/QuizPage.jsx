@@ -7,6 +7,7 @@ import { saveProgress, loadProgress, addWrongNote, getWrongNotes, removeWrongNot
 import useStudyTimer from '../hooks/useStudyTimer';
 import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
+import ProblemContext from '../components/ProblemContext';
 import { useThemeContext } from '../hooks/useTheme';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
@@ -103,6 +104,8 @@ export default function QuizPage() {
             <span className="badge badge-primary">{current.lang.toUpperCase()}</span>
           </div>
 
+          <ProblemContext text={current.context} fontSize="0.9rem" />
+
           <SyntaxHighlighter language={current.lang} style={syntaxTheme} customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}>
             {current.code}
           </SyntaxHighlighter>
@@ -154,6 +157,7 @@ export default function QuizPage() {
                           source: 'quiz',
                           type: 'code',
                           title: current.title,
+                          context: current.context,
                           code: current.code,
                           lang: current.lang,
                           answer: current.answer,

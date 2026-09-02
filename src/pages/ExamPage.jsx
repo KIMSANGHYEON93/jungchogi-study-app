@@ -7,6 +7,7 @@ import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
 import useStudyTimer from '../hooks/useStudyTimer';
 import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
+import ProblemContext from '../components/ProblemContext';
 import { useThemeContext } from '../hooks/useTheme';
 
 function shuffleArray(arr) {
@@ -157,6 +158,7 @@ export default function ExamPage() {
           ) : (
             <>
               <h3 style={{ marginBottom: 12 }}>{q.title}</h3>
+              <ProblemContext text={q.context} fontSize="0.9rem" />
               <SyntaxHighlighter language={q.lang} style={syntaxTheme} customStyle={{ borderRadius: 8, fontSize: '0.9rem' }}>
                 {q.code}
               </SyntaxHighlighter>
@@ -254,6 +256,7 @@ export default function ExamPage() {
                     type: q.type,
                     question: q.type === 'quiz' ? q.question : undefined,
                     title: q.type === 'code' ? q.title : undefined,
+                    context: q.type === 'code' ? q.context : undefined,
                     code: q.type === 'code' ? q.code : undefined,
                     lang: q.type === 'code' ? q.lang : undefined,
                     answer: q.answer,

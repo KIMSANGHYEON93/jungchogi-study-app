@@ -13,7 +13,7 @@ const byId = (problems, id) => problems.find((p) => p.id === id);
 describe('parseCodeDrill — 실제 콘텐츠 형식', () => {
   it('`### X-NN.` 헤딩을 가진 문제만 추출한다', () => {
     const problems = parseCodeDrill(sample);
-    expect(problems.map((p) => p.id)).toEqual(['C-01', 'J-01', 'S-01']);
+    expect(problems.map((p) => p.id)).toEqual(['C-01', 'J-01', 'S-01', 'S-05']);
   });
 
   it('lang 은 문제 ID 접두사가 아니라 직전 `## Part` 섹션에서 결정된다', () => {
@@ -77,10 +77,30 @@ describe('parseCodeDrill — 실제 콘텐츠 형식', () => {
     expect(byId(problems, 'J-01').expectedOutput).toBe('10 B');
   });
 
-  it('코드펜스가 둘 이상이면 첫 번째만 code 로 삼는다 (SQL 문제는 예제 테이블이 잡힌다)', () => {
+  it('지문 코드펜스가 둘이면 언어 태그가 붙은 쪽이 code, 나머지는 context 다', () => {
     const s01 = byId(parseCodeDrill(sample), 'S-01');
-    expect(s01.code).toContain('테이블: 사원(이름, 부서, 급여)');
-    expect(s01.code).not.toContain('SELECT');
+    expect(s01.code).toContain('SELECT 부서, COUNT(*) AS 인원, AVG(급여) AS 평균');
+    expect(s01.code).toContain('HAVING COUNT(*) >= 3;');
+    expect(s01.code).not.toContain('테이블: 사원');
+
+    expect(s01.context).toContain('테이블: 사원(이름, 부서, 급여)');
+    expect(s01.context).toContain('| 김 | 개발 | 400 |');
+    expect(s01.context).not.toContain('SELECT');
+  });
+
+  it('지문 코드펜스가 하나뿐이면 그것이 code 이고 context 는 빈 문자열이다', () => {
+    const c01 = byId(parseCodeDrill(sample), 'C-01');
+    expect(c01.code).toContain('#include <stdio.h>');
+    expect(c01.context).toBe('');
+  });
+
+  it('`<details>` 안의 코드펜스는 정답이므로 code 로 잡지 않는다', () => {
+    // S-05 는 지문이 태그 없는 펜스 하나뿐이고 sql 펜스는 정답 쪽에 있다
+    const s05 = byId(parseCodeDrill(sample), 'S-05');
+    expect(s05.code).toContain('다음 조건에 맞는 CREATE TABLE 문을 작성하시오:');
+    expect(s05.code).not.toContain('CREATE TABLE 학생 (');
+    expect(s05.context).toBe('');
+    expect(s05.answer).toContain('CREATE TABLE 학생 (');
   });
 });
 
@@ -103,6 +123,7 @@ describe('parseCodeDrill — 엣지 케이스', () => {
     expect(p.pitfall).toBe('');
     expect(p.expectedOutput).toBe('');
     expect(p.code).toBe('int a;');
+    expect(p.context).toBe('');
   });
 
   it('answer 에 `출력` 이라는 낱말이 아예 없으면 expectedOutput 은 빈 문자열이다', () => {

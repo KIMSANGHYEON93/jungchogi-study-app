@@ -121,3 +121,30 @@ HAVING COUNT(*) >= 3;
 
 ---
 
+
+### S-05. DDL 작성
+
+```
+다음 조건에 맞는 CREATE TABLE 문을 작성하시오:
+- 테이블명: 학생
+- 학번(INT): 기본키
+- 이름(VARCHAR(20)): NOT NULL
+- 학과(VARCHAR(30)): 기본값 '미정'
+- 학년(INT): 1~4 사이 값만 허용
+```
+
+<details>
+<summary>정답</summary>
+
+```sql
+CREATE TABLE 학생 (
+    학번 INT PRIMARY KEY,
+    이름 VARCHAR(20) NOT NULL,
+    학과 VARCHAR(30) DEFAULT '미정',
+    학년 INT CHECK (학년 BETWEEN 1 AND 4)
+);
+```
+**체크**: PRIMARY KEY / NOT NULL / DEFAULT / CHECK 제약조건 구분
+</details>
+
+---
