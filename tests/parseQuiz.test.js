@@ -70,4 +70,28 @@ describe('parseQuiz — 엣지 케이스', () => {
     const [q] = parseQuiz('### 001. 미완성 문항\n\n<details><summary>정답</summary>\n답 첫 줄\n답 둘째 줄\n');
     expect(q.answer).toBe('답 첫 줄\n답 둘째 줄');
   });
+
+  it('details 블록이 없는 문항은 다음 문항의 정답을 가져오지 않는다', () => {
+    const questions = parseQuiz(
+      [
+        '## A. 데이터베이스',
+        '',
+        '### 001. 정답 블록이 없는 문항',
+        '',
+        '### 002. 정답 블록이 있는 문항',
+        '',
+        '<details><summary>정답</summary>',
+        '002의 정답',
+        '</details>',
+        '',
+      ].join('\n')
+    );
+    expect(questions).toHaveLength(2);
+    expect(questions[0].answer).toBe('');
+    expect(questions[1].answer).toBe('002의 정답');
+  });
+
+  it('CRLF 개행 문서에서도 LF 문서와 완전히 같은 결과를 낸다', () => {
+    expect(parseQuiz(sample.replace(/\n/g, '\r\n'))).toEqual(parseQuiz(sample));
+  });
 });

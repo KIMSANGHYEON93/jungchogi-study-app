@@ -94,4 +94,8 @@ describe('parseBogang — 엣지 케이스', () => {
     const [card] = parseBogang('### 보강 1: [암기 001]\n내용\n');
     expect(card.question).toBe('[보강] ');
   });
+
+  it('CRLF 개행 문서에서도 LF 문서와 완전히 같은 결과를 낸다', () => {
+    expect(parseBogang(sample.replace(/\n/g, '\r\n'))).toEqual(parseBogang(sample));
+  });
 });

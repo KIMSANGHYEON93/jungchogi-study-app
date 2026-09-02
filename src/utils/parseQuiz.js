@@ -13,7 +13,7 @@ export function parseQuiz(mdText) {
     'F': 'OS/기타',
   };
 
-  const lines = mdText.split('\n');
+  const lines = mdText.split(/\r?\n/);
   let i = 0;
 
   while (i < lines.length) {
@@ -29,11 +29,16 @@ export function parseQuiz(mdText) {
       const id = qMatch[1];
       const question = qMatch[2].trim();
 
+      // 이 문항의 영역: 다음 문항 헤딩 직전까지 (정답 블록이 없는 문항이
+      // 다음 문항의 정답을 가져오지 않도록 경계를 둔다)
+      let end = i + 1;
+      while (end < lines.length && !lines[end].startsWith('### ')) end++;
+
       // details 블록 내 정답 수집
       let answer = '';
       let inDetails = false;
       let j = i + 1;
-      while (j < lines.length) {
+      while (j < end) {
         if (lines[j].includes('<details>')) {
           inDetails = true;
           j++;

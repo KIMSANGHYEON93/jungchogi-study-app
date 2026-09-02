@@ -11,7 +11,7 @@ export function parseCodeDrill(mdText) {
   ];
 
   let currentLang = 'c';
-  const lines = mdText.split('\n');
+  const lines = mdText.split(/\r?\n/);
   let i = 0;
 
   while (i < lines.length) {
@@ -28,15 +28,20 @@ export function parseCodeDrill(mdText) {
       const id = pMatch[1];
       const title = pMatch[2].trim();
 
+      // 이 문제의 영역: 다음 문제 헤딩 직전까지 (코드/정답 블록이 없는 문제가
+      // 다음 문제의 것을 가져오지 않도록 경계를 둔다)
+      let end = i + 1;
+      while (end < lines.length && !lines[end].startsWith('### ')) end++;
+
       // 코드 블록 수집
       let code = '';
       let j = i + 1;
       // 첫 번째 코드 블록 찾기
-      while (j < lines.length && !lines[j].startsWith('```')) j++;
-      if (j < lines.length) {
+      while (j < end && !lines[j].startsWith('```')) j++;
+      if (j < end) {
         // lines[j] 는 여는 코드펜스(```c, ```java 등) — 언어 표기는 쓰지 않으므로 건너뜀
         j++;
-        while (j < lines.length && !lines[j].startsWith('```')) {
+        while (j < end && !lines[j].startsWith('```')) {
           code += lines[j] + '\n';
           j++;
         }
@@ -46,11 +51,11 @@ export function parseCodeDrill(mdText) {
       let answer = '';
       let pitfall = '';
       let inDetails = false;
-      while (j < lines.length) {
+      while (j < end) {
         if (lines[j].includes('<details>')) {
           inDetails = true;
           j++;
-          if (j < lines.length && lines[j].includes('<summary>')) j++;
+          if (j < end && lines[j].includes('<summary>')) j++;
           continue;
         }
         if (lines[j].includes('</details>')) break;

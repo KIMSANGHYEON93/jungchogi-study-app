@@ -29,7 +29,7 @@ export function parseBogang(mdText) {
     '기출': 'OS/기타',
   };
 
-  const lines = mdText.split('\n');
+  const lines = mdText.split(/\r?\n/);
   let i = 0;
 
   while (i < lines.length) {

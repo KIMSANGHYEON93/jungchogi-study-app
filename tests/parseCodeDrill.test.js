@@ -159,4 +159,39 @@ describe('parseCodeDrill — 엣지 케이스', () => {
     const [p] = parseCodeDrill('### C-01. 코드 없음\n\n설명만 있다\n');
     expect(p.code).toBe('');
   });
+
+  it('코드펜스가 없는 문제는 다음 문제의 코드를 가져오지 않는다', () => {
+    const problems = parseCodeDrill(
+      ['### C-01. 코드 없음', '설명만 있다', '', '### C-02. 코드 있음', '```', 'int b;', '```', ''].join('\n')
+    );
+    expect(problems).toHaveLength(2);
+    expect(problems[0].code).toBe('');
+    expect(problems[1].code).toBe('int b;');
+  });
+
+  it('details 블록이 없는 문제는 다음 문제의 정답을 가져오지 않는다', () => {
+    const problems = parseCodeDrill(
+      [
+        '### C-01. 정답 없음',
+        '```',
+        'int a;',
+        '```',
+        '',
+        '### C-02. 정답 있음',
+        '```',
+        'int b;',
+        '```',
+        '<details>',
+        '<summary>정답</summary>',
+        'C-02의 정답',
+        '</details>',
+      ].join('\n')
+    );
+    expect(problems[0].answer).toBe('');
+    expect(problems[1].answer).toBe('C-02의 정답');
+  });
+
+  it('CRLF 개행 문서에서도 LF 문서와 완전히 같은 결과를 낸다', () => {
+    expect(parseCodeDrill(sample.replace(/\n/g, '\r\n'))).toEqual(parseCodeDrill(sample));
+  });
 });
