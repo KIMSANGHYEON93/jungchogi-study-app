@@ -1,12 +1,49 @@
 const PREFIX = 'jungchogi_';
 
+// 브라우저마다 용량 초과 예외의 name/code 가 다르다.
+// 용량 초과만 흡수하고 그 밖의 예외(사생활 보호 모드의 SecurityError 등)는
+// 원인을 감추지 않도록 그대로 전파한다.
+function isQuotaExceeded(err) {
+  return (
+    !!err &&
+    (err.name === 'QuotaExceededError' ||
+      err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      err.code === 22 ||
+      err.code === 1014)
+  );
+}
+
+// 저장 성공 여부를 돌려준다. 용량이 꽉 차도 앱을 죽이지 않는다 —
+// 대시보드 "데이터 관리"의 용량 표시가 사용자에게 보이는 경고 경로다.
 export function saveProgress(key, data) {
-  localStorage.setItem(PREFIX + key, JSON.stringify(data));
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(data));
+    return true;
+  } catch (err) {
+    if (!isQuotaExceeded(err)) throw err;
+    console.warn(
+      `[storage] ${PREFIX + key} 저장 실패: localStorage 용량 초과. ` +
+        '대시보드 "데이터 관리"에서 내보내기 후 초기화가 필요합니다.',
+      err
+    );
+    return false;
+  }
 }
 
 export function loadProgress(key, fallback = null) {
   const raw = localStorage.getItem(PREFIX + key);
-  return raw ? JSON.parse(raw) : fallback;
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    // 손상된 값을 조용히 삼키면 진행 상황이 소리 없이 사라진 것처럼 보인다.
+    // 값 자체는 지우지 않는다 — "데이터 관리 → 내보내기"로 복구할 여지를 남긴다.
+    console.warn(
+      `[storage] ${PREFIX + key} 값이 손상돼 읽지 못했습니다. 기본값으로 대체합니다.`,
+      err
+    );
+    return fallback;
+  }
 }
 
 export function clearProgress(key) {

@@ -62,10 +62,26 @@ describe('saveProgress / loadProgress / clearProgress', () => {
     expect(loadProgress('nullable', 'fallback')).toBeNull();
   });
 
-  it('손상된 JSON 은 fallback 으로 흡수되지 않고 예외를 던진다', () => {
-    // 현행 동작 기록: loadProgress 에 try/catch 가 없다.
+  it('손상된 JSON 은 예외 대신 fallback 을 돌려준다', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     localStorage.setItem(`${PREFIX}broken`, '{"a":');
-    expect(() => loadProgress('broken', {})).toThrow(SyntaxError);
+    expect(loadProgress('broken', { safe: true })).toEqual({ safe: true });
+    expect(loadProgress('broken')).toBeNull();
+  });
+
+  it('손상된 값을 만나면 조용히 넘어가지 않고 키 이름과 함께 콘솔 경고를 남긴다', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    localStorage.setItem(`${PREFIX}broken`, '{"a":');
+    loadProgress('broken', {});
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0].join(' ')).toContain(`${PREFIX}broken`);
+  });
+
+  it('손상된 값을 지우지는 않는다 (내보내기로 복구할 여지를 남긴다)', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    localStorage.setItem(`${PREFIX}broken`, '{"a":');
+    loadProgress('broken', {});
+    expect(localStorage.getItem(`${PREFIX}broken`)).toBe('{"a":');
   });
 
   it('clearProgress 는 해당 키만 지운다', () => {
@@ -76,12 +92,25 @@ describe('saveProgress / loadProgress / clearProgress', () => {
     expect(loadProgress('b')).toBe(2);
   });
 
-  it('용량이 넘치면 setItem 예외가 그대로 호출자에게 전파된다', () => {
-    // 현행 동작 기록: saveProgress 에 QuotaExceededError 처리가 없다.
+  it('저장에 성공하면 true 를 돌려준다', () => {
+    expect(saveProgress('ok', 1)).toBe(true);
+  });
+
+  it('용량이 넘쳐도 예외를 터뜨리지 않고 false 를 돌려주며 콘솔 경고를 남긴다', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('quota', 'QuotaExceededError');
     });
-    expect(() => saveProgress('big', 'x')).toThrow(/quota/);
+    expect(saveProgress('big', 'x')).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0].join(' ')).toContain(`${PREFIX}big`);
+  });
+
+  it('용량 초과가 아닌 예외는 삼키지 않고 그대로 전파한다', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    expect(() => saveProgress('x', 1)).toThrow(/denied/);
   });
 });
 
