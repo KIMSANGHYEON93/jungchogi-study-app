@@ -1,5 +1,11 @@
 {
+  "functions": {
+    "api/ai/*.js": {
+      "maxDuration": 60,
+      "includeFiles": "public/data/**"
+    }
+  },
   "rewrites": [
-    { "source": "/((?!data/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|data/).*)", "destination": "/index.html" }
   ]
 }
