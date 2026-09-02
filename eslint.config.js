@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // 빌드·테스트 설정 파일은 브라우저가 아니라 Node 에서 실행된다
+    files: ['vite.config.js', 'eslint.config.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

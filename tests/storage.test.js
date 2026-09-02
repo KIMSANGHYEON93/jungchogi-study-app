@@ -241,9 +241,15 @@ describe('D-Day', () => {
 });
 
 describe('학습 시간', () => {
+  // 시간대는 vite.config.js 에서 Asia/Seoul 로 고정된다(테스트 실행 시에만).
+  // 아래 기대값들은 UTC 와 로컬 날짜가 갈리는 시각을 골라 UTC 회귀를 잡는다.
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-02T12:00:00Z'));
+    vi.setSystemTime(new Date('2026-09-02T12:00:00Z')); // 2026-09-02 21:00 KST
+  });
+
+  it('테스트 시간대가 UTC 로 풀리면 아래 기대값이 무의미해지므로 먼저 확인한다', () => {
+    expect(new Date().getTimezoneOffset()).toBe(-540);
   });
 
   it('로그가 없으면 빈 객체다', () => {
@@ -256,9 +262,25 @@ describe('학습 시간', () => {
     expect(getStudyTimeLog()['2026-09-02']).toBe(15);
   });
 
-  it('날짜 키는 UTC 기준 `YYYY-MM-DD` 다', () => {
+  it('날짜 키는 로컬 기준 `YYYY-MM-DD` 다', () => {
     addStudyTime(3);
     expect(Object.keys(getStudyTimeLog())).toEqual(['2026-09-02']);
+  });
+
+  it('로컬 자정 직후의 학습은 전날이 아니라 오늘 키에 쌓인다', () => {
+    // 2026-09-02 08:00 KST = 2026-09-01 23:00 UTC.
+    // UTC 기준이면 `2026-09-01` 로 기록돼 하루 밀린다.
+    vi.setSystemTime(new Date('2026-09-01T23:00:00Z'));
+    addStudyTime(30);
+    expect(Object.keys(getStudyTimeLog())).toEqual(['2026-09-02']);
+  });
+
+  it('주간 통계의 날짜 키와 요일 라벨이 자정 근처에서도 어긋나지 않는다', () => {
+    vi.setSystemTime(new Date('2026-09-01T23:00:00Z')); // 2026-09-02(수) 08:00 KST
+    addStudyTime(20);
+    const week = getWeeklyStudyTime();
+    expect(week.at(-1)).toEqual({ date: '2026-09-02', day: '수', minutes: 20 });
+    expect(week[0]).toEqual({ date: '2026-08-27', day: '목', minutes: 0 });
   });
 
   it('주간 통계는 오늘을 마지막으로 하는 7일치를 돌려준다', () => {

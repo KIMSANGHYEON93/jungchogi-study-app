@@ -119,13 +119,23 @@ export function getExamDate() {
 
 const STUDY_TIME_KEY = 'study_time';
 
+// 날짜 키는 로컬 기준 YYYY-MM-DD.
+// toISOString() 은 UTC 라 요일 라벨(getDay(), 로컬)과 어긋난다 —
+// 한국(UTC+9)에서는 00:00~08:59 학습이 전날 칸에 쌓이는 결함이 있었다.
+function toLocalDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function getStudyTimeLog() {
   return loadProgress(STUDY_TIME_KEY, {});
 }
 
 export function addStudyTime(minutes) {
   const log = getStudyTimeLog();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateKey(new Date());
   log[today] = (log[today] || 0) + minutes;
   saveProgress(STUDY_TIME_KEY, log);
 }
@@ -137,7 +147,7 @@ export function getWeeklyStudyTime() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = toLocalDateKey(d);
     result.push({
       date: key,
       day: dayNames[d.getDay()],

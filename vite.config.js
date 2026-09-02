@@ -2,6 +2,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// 테스트 시간대를 한국으로 고정한다.
+// 학습 시간 날짜 키는 로컬 기준인데, 실행 환경이 UTC 면(CI 가 그렇다)
+// 로컬 날짜와 UTC 날짜가 언제나 같아서 UTC 회귀를 걸러내지 못한다.
+// 워커가 뜨기 전(설정 로드 시점)에 지정해야 V8 이 시간대를 반영한다 —
+// 테스트 안에서 process.env.TZ 를 바꾸거나 vi.stubEnv 를 써도 듣지 않는다.
+if (process.env.VITEST) process.env.TZ = 'Asia/Seoul'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
