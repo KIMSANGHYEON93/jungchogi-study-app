@@ -95,6 +95,28 @@ describe('parseCodeDrill — 실제 콘텐츠 형식', () => {
     expect(byId(problems, 'J-01').expectedOutput).toBe('10 B');
   });
 
+  it('풀이 문장 끝의 `... 출력` 은 건너뛰고 줄 첫머리의 `출력:` 만 본다', () => {
+    // 실제 J-02 풀이는 `→ "P1 " 출력` 이 `출력: P1 C` 보다 먼저 나온다
+    const [p] = parseCodeDrill(
+      [
+        '### J-02. 생성자 체인',
+        '```',
+        'x',
+        '```',
+        '<details>',
+        '<summary>정답 및 풀이</summary>',
+        '```',
+        '→ super(1) → Parent(int x) 호출 → "P1 " 출력',
+        '→ "C " 출력',
+        '',
+        '출력: P1 C',
+        '```',
+        '</details>',
+      ].join('\n')
+    );
+    expect(p.expectedOutput).toBe('P1 C');
+  });
+
   it('지문 코드펜스가 둘이면 언어 태그가 붙은 쪽이 code, 나머지는 context 다', () => {
     const s01 = byId(parseCodeDrill(sample), 'S-01');
     expect(s01.code).toContain('SELECT 부서, COUNT(*) AS 인원, AVG(급여) AS 평균');
@@ -160,8 +182,7 @@ describe('parseCodeDrill — 엣지 케이스', () => {
     expect(p.expectedOutput).toBe('');
   });
 
-  it('`출력` 은 콜론 없이 문장 속에 있어도 그 뒤를 expectedOutput 으로 오인한다', () => {
-    // 현행 동작 기록: 정규식이 /출력[:\s]*/ 라 낱말 단위 경계가 없다.
+  it('문장 속 `출력` 뒤는 expectedOutput 으로 오인하지 않는다', () => {
     const [p] = parseCodeDrill(
       [
         '### C-01. 오탐 사례',
@@ -171,10 +192,31 @@ describe('parseCodeDrill — 엣지 케이스', () => {
         '<details>',
         '<summary>정답</summary>',
         '이 문제는 출력 형식을 묻지 않는다',
+        '출력 결과는 채점하지 않는다',
         '</details>',
       ].join('\n')
     );
-    expect(p.expectedOutput).toBe('형식을 묻지 않는다');
+    expect(p.expectedOutput).toBe('');
+  });
+
+  it('`출력:` 다음 줄부터 여러 줄이면 코드펜스 닫힐 때까지 모두 담는다', () => {
+    const [p] = parseCodeDrill(
+      [
+        '### C-07. 여러 줄 출력',
+        '```',
+        'int a;',
+        '```',
+        '<details>',
+        '<summary>정답</summary>',
+        '```',
+        '출력:',
+        '7 3',
+        '3 7',
+        '```',
+        '</details>',
+      ].join('\n')
+    );
+    expect(p.expectedOutput).toBe('7 3\n3 7');
   });
 
   it('pitfall 라벨이 여러 개면 마지막 것이 남는다', () => {

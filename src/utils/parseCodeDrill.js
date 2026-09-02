@@ -99,9 +99,13 @@ export function parseCodeDrill(mdText) {
         j++;
       }
 
-      // answer에서 "출력:" 부분 추출
+      // answer에서 "출력:" 부분 추출 — 줄 첫머리의 `출력:` 만 본다.
+      // 낱말 경계가 없으면 `"P1 " 출력` 이나 `출력 형식을 묻지 않는다` 같은
+      // 문장 속 "출력" 뒤를 결과값으로 오인한다.
       let expectedOutput = '';
-      const outputMatch = answer.match(/출력[:\s]*\n?([\s\S]*?)(?:\n```|$)/);
+      // `m` 플래그를 쓰면 종료 조건의 `$` 가 줄 끝마다 걸려 여러 줄 출력이
+      // 첫 줄에서 잘리므로, 줄머리 판정은 `(?:^|\n)` 으로 직접 한다.
+      const outputMatch = answer.match(/(?:^|\n)출력[ \t]*:[ \t]*\n?([\s\S]*?)(?:\n```|$)/);
       if (outputMatch) {
         expectedOutput = outputMatch[1].trim();
       }
