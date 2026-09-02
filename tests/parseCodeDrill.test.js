@@ -50,15 +50,13 @@ describe('parseCodeDrill — 실제 콘텐츠 형식', () => {
     expect(c01.answer).not.toContain('함정');
   });
 
-  it('pitfall 라벨은 7종 하드코딩이라 `**최다출제 함정**` 은 못 잡고 answer 로 흘러간다', () => {
-    // 현행 동작 기록: 라벨이 정확히 함정/핵심~/포인트/필수~/암기/주의/체크 로 시작해야 한다.
-    // 실제 콘텐츠 40문제 중 J-01 한 건이 이 틈으로 빠진다.
+  it('라벨 목록에 없던 `**최다출제 함정**` 도 pitfall 로 잡는다', () => {
     const j01 = byId(parseCodeDrill(sample), 'J-01');
-    expect(j01.pitfall).toBe('');
-    expect(j01.answer).toContain('**최다출제 함정**');
+    expect(j01.pitfall).toBe('변수=선언타입(부모), 메서드=실제객체(자식). 반드시 구분!');
+    expect(j01.answer).not.toContain('최다출제 함정');
   });
 
-  it('`**핵심 ...**`, `**필수 ...**` 처럼 뒤에 말이 붙는 라벨은 잡는다', () => {
+  it('라벨은 고정 목록이 아니라 `**...**:` 패턴으로 판정한다', () => {
     const mk = (label) =>
       parseCodeDrill(
         ['### C-01. 제목', '```', 'x', '```', '<details>', '<summary>정답</summary>', `**${label}**: 잡힌다`, '</details>'].join('\n')
@@ -69,6 +67,26 @@ describe('parseCodeDrill — 실제 콘텐츠 형식', () => {
     expect(mk('포인트')).toBe('잡힌다');
     expect(mk('주의')).toBe('잡힌다');
     expect(mk('체크')).toBe('잡힌다');
+    expect(mk('최다출제 함정')).toBe('잡힌다');
+    expect(mk('한 번도 쓴 적 없는 라벨')).toBe('잡힌다');
+  });
+
+  it('콜론이 없거나 콜론 뒤가 비면 라벨이 아니라 answer 로 남긴다', () => {
+    // S-08 은 `**암기**:` 다음 줄부터 목록이 이어진다. 한 줄짜리 pitfall 이 아니므로
+    // 라벨 줄째로 answer 에 남겨 마크다운 목록 그대로 보이게 한다.
+    const mk = (lines) =>
+      parseCodeDrill(
+        ['### C-01. 제목', '```', 'x', '```', '<details>', '<summary>정답</summary>', ...lines, '</details>'].join('\n')
+      )[0];
+
+    const empty = mk(['**암기**:', '- GRANT: TO 사용자', '- REVOKE: FROM 사용자']);
+    expect(empty.pitfall).toBe('');
+    expect(empty.answer).toContain('**암기**:');
+    expect(empty.answer).toContain('- GRANT: TO 사용자');
+
+    const noColon = mk(['**참고** 콜론이 없다']);
+    expect(noColon.pitfall).toBe('');
+    expect(noColon.answer).toContain('**참고** 콜론이 없다');
   });
 
   it('answer 안의 `출력:` 이후 텍스트를 expectedOutput 으로 뽑는다', () => {

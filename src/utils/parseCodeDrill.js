@@ -86,21 +86,12 @@ export function parseCodeDrill(mdText) {
         }
         if (lines[j].includes('</details>')) break;
         if (inDetails) {
-          // 함정 라인 감지
-          const pitfallMatch = lines[j].match(/^\*\*함정\*\*[:\s]*(.+)/);
-          const pitfallMatch2 = lines[j].match(/^\*\*핵심[^*]*\*\*[:\s]*(.+)/);
-          const pitfallMatch3 = lines[j].match(/^\*\*포인트\*\*[:\s]*(.+)/);
-          const pitfallMatch4 = lines[j].match(/^\*\*필수[^*]*\*\*[:\s]*(.+)/);
-          const pitfallMatch5 = lines[j].match(/^\*\*암기\*\*[:\s]*(.+)/);
-          const pitfallMatch6 = lines[j].match(/^\*\*주의\*\*[:\s]*(.+)/);
-          const pitfallMatch7 = lines[j].match(/^\*\*체크\*\*[:\s]*(.+)/);
+          // 함정 라인 감지 — 라벨(함정/핵심/포인트/암기/최다출제 함정 …)을 목록으로
+          // 고정하지 않고 `**라벨**: 본문` 이라는 한 줄 요약 패턴으로 판정한다.
+          // 콜론 뒤 본문이 비면(예: `**암기**:` 다음 줄부터 목록이 이어지는 S-08)
+          // 한 줄 요약이 아니므로 라벨 줄째로 answer 에 남겨 원문대로 보이게 한다.
+          const pitfallMatch = lines[j].match(/^\*\*[^*]+\*\*\s*:\s*(\S.*)$/);
           if (pitfallMatch) pitfall = pitfallMatch[1];
-          else if (pitfallMatch2) pitfall = pitfallMatch2[1];
-          else if (pitfallMatch3) pitfall = pitfallMatch3[1];
-          else if (pitfallMatch4) pitfall = pitfallMatch4[1];
-          else if (pitfallMatch5) pitfall = pitfallMatch5[1];
-          else if (pitfallMatch6) pitfall = pitfallMatch6[1];
-          else if (pitfallMatch7) pitfall = pitfallMatch7[1];
           else {
             answer += lines[j] + '\n';
           }
