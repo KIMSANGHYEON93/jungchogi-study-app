@@ -178,8 +178,8 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 |---|---|---|---|---|
 | **0. 기반 정비** | 문서·테스트·CI·드러난 결함 해소 | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 93 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build), 파서·스토리지 결함 P1~P8 수정 | lint 0 errors · test 93/93 · build 성공 (로컬 확인) | ✅ |
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, 오답노트·퀴즈 페이지에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | ⏳ |
-| **2. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
-| **3. 학습 플래너 에이전트** | 핵심 에이전트 | `api/ai/plan.js` + Tool Runner, 도구 5종, `StudyPlan` 저장, 대시보드 "오늘의 계획" 카드 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | ⏳ |
+| **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner, 도구 5종, `StudyPlan` 저장, 대시보드 "오늘의 계획" 카드 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | ⏳ |
+| **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
 | **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
 
@@ -261,11 +261,20 @@ Phase 1 완료 시 `response.usage`를 로깅해 이 표를 실측치로 교체�
 
 ---
 
-## 7. 열린 결정 사항 (사용자 확인 필요)
-1. **모델/비용**: 기본 `claude-opus-5`로 갈지, 해설처럼 단순한 경로는 저비용 모델로 나눌지 (캐시 네임스페이스가 모델별로 분리되는 점 유의)
-2. **접근 제어 수준**: 접근 코드로 충분한지, 본인만 쓰는 앱이면 코드 없이 Vercel 배포 보호(Password Protection)로 대체할지
-3. **TypeScript 전환**: Phase 0에서 도메인 타입만 `.d.ts`로 둘지, 전체 TS 전환까지 갈지
-4. **Phase 순서**: 플래너(3)를 채점(2)보다 앞당길지 — 플래너가 이 앱의 차별점이라면 2↔3 교체 가능
+## 7. 결정 사항 (2026-09-02 확정)
+1. ~~모델/비용~~ → **단일 `claude-opus-5` 유지.** 저비용 모델로 나누지 않고 `output_config.effort`로 조절한다
+   (해설 `low`, 채점 `medium`, 플래너 `high`). 이유: 캐시 네임스페이스가 모델별로 분리돼 모델을 쪼개면
+   콘텐츠 프리픽스 캐시 재사용을 잃는다. 최신 모델의 낮은 effort가 구세대의 높은 effort보다 나은 경우가 많다.
+2. ~~접근 제어 수준~~ → **Vercel 배포 보호(Password Protection)를 1차 게이트로 삼는다.**
+   다만 `api/ai/*`는 공개 URL에 노출되는 서버리스 함수이고 남용되면 곧바로 API 비용이 나가므로,
+   `lib/ai/guard.js`는 **레이트리밋을 항상** 적용하고 **`AI_ACCESS_CODE` 환경변수가 설정돼 있을 때만**
+   `x-access-code` 헤더를 요구한다(미설정이면 코드 검사를 건너뛴다). 배포 보호가 없는 플랜에서도,
+   보호를 켠 상태에서도 둘 다 성립한다.
+3. ~~TypeScript 전환~~ → **하지 않는다. JS 유지.** 공통 shape는 `src/domain/`에 JSDoc `@typedef`로 둔다.
+   이유: 3,000줄 규모에서 전환 비용 대비 이득이 작고, Phase 1~3의 실제 위험은 타입이 아니라
+   AI 응답 스키마 검증(structured outputs가 담당)이다.
+4. ~~Phase 순서~~ → **플래너를 앞당긴다. Phase 2 = 학습 플래너(구 3), Phase 3 = 자동 채점(구 2).**
+   이유: 플래너가 이 앱의 차별점이고, 채점은 플래너가 만든 계획을 소비하는 쪽에 가깝다.
 5. ~~**파서 결함 P3~P8 처리 시점**~~ → **결정됨(2026-09-02)**: Phase 1 앞에 별도로 닫았다. §5 "Phase 0 에서 드러난 파서·스토리지 결함" 참조
 
 ---
