@@ -6,7 +6,7 @@ Vite + React 19 기반 순수 클라이언트 SPA. 14일 학습 문서, 플래�
 
 ## 현재 상태 (2026-09-02)
 - 기능 개발 완료 후 VIVARA 디자인 적용, react-hooks lint 0 errors
-- 블루프린트 **Phase 0(기반 정비) 완료** — Vitest 81 tests, GitHub Actions CI(lint→test→build)
+- 블루프린트 **Phase 0(기반 정비) 완료** — Vitest 93 tests, GitHub Actions CI(lint→test→build), 파서·스토리지 결함 8건 해소
 - AI 기능 없음 → 블루프린트 Phase 1에서 착수 예정
 
 ## 기능

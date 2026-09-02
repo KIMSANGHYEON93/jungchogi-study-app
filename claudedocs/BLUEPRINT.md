@@ -16,7 +16,7 @@
 | 저장소 | `localStorage` 전용 (`jungchogi_` 접두사), 서버 없음 |
 | 배포 | Vercel 정적 호스팅 (`vercel.json` SPA rewrite, `/data/` 제외) |
 | 디자인 | VIVARA 디자인 시스템 (`design-system/vivara/MASTER.md`) |
-| 품질 | ESLint 9 + react-hooks 7 → **0 errors**. Vitest 4 + jsdom → **81 tests**(파서 3종·storage). GitHub Actions CI(lint→test→build) |
+| 품질 | ESLint 9 + react-hooks 7 → **0 errors**. Vitest 4 + jsdom → **93 tests**(파서 3종·storage). GitHub Actions CI(lint→test→build) |
 | 규모 | `src/` 약 3,076줄, 페이지 9개, 훅 3개, 파서 3개 |
 
 ### 1.2 구현 완료 기능 (git log 기준)
@@ -38,10 +38,12 @@
 [Content 컨텍스트]           [Progress 컨텍스트]
  DayDocument (md)             WrongNote {source,id,reviewCount,lastReviewed,mastered}
  QuizItem   {id,question,     QuizResult {id → correct|incorrect}
-             answer,category} StudyTimeLog {date → minutes}
- CodeDrill  {id,title,code,   DayChecks {day → bool}
-             lang,answer,     ExamDate (ISO string)
-             pitfall}         FlashcardKnown {deck → Set<id>}
+             answer,category} StudyTimeLog {date(로컬) → minutes}
+ CodeDrill  {id,title,        DayChecks {day → bool}
+             context,code,    ExamDate (ISO string)
+             lang,answer,     FlashcardKnown {deck → Set<id>}
+             expectedOutput,
+             pitfall}
  BogangCard {id,question,
              answer,category}
 ```
@@ -52,7 +54,7 @@
 | # | 갭 | 영향 |
 |---|---|---|
 | ~~G1~~ | ~~README가 Vite 템플릿 원본 → 진행 상태 파악 불가~~ | ✅ Phase 0 해소 |
-| ~~G2~~ | ~~테스트 0건 (파서·스토리지 포함)~~ | ✅ Phase 0 해소 (81 tests) |
+| ~~G2~~ | ~~테스트 0건 (파서·스토리지 포함)~~ | ✅ Phase 0 해소 (93 tests) |
 | ~~G3~~ | ~~CI 없음~~ | ✅ Phase 0 해소 (`.github/workflows/ci.yml`) |
 | G4 | 서버 없음 → API 키를 둘 곳이 없음 | **AI 도입의 선결 과제** |
 | G5 | 도메인 타입 미정의 (JS, 파서마다 다른 shape) | AI 도구(tool) 스키마 정의 시 정합성 문제 |
@@ -174,27 +176,58 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 
 | Phase | 목표 | 산출물 | 완료 조건 | 상태 |
 |---|---|---|---|---|
-| **0. 기반 정비** | 문서·테스트·CI | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 81 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build) | lint 0 errors · test 81/81 · build 성공 (로컬 확인) | ✅ |
+| **0. 기반 정비** | 문서·테스트·CI·드러난 결함 해소 | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 93 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build), 파서·스토리지 결함 P1~P8 수정 | lint 0 errors · test 93/93 · build 성공 (로컬 확인) | ✅ |
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, 오답노트·퀴즈 페이지에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | ⏳ |
 | **2. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
 | **3. 학습 플래너 에이전트** | 핵심 에이전트 | `api/ai/plan.js` + Tool Runner, 도구 5종, `StudyPlan` 저장, 대시보드 "오늘의 계획" 카드 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | ⏳ |
 | **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
 
-### Phase 0 에서 드러난 파서 결함 (테스트로 기록됨)
+### Phase 0 에서 드러난 파서·스토리지 결함 — **전건 해소 (2026-09-02)**
 
-테스트를 씌우면서 확인된 항목. 앞의 2건은 실제 콘텐츠 파싱 결과가 바뀌지 않음을 확인하고 고쳤고, 나머지는 **현행 동작을 테스트로 고정만 해두었다**(수정 시 사용자에게 보이는 내용이 바뀌므로 별도 결정 필요).
+테스트를 씌우면서 확인된 8건. P1·P2 는 Phase 0 안에서 고쳤고, 화면에 보이는 내용이 바뀌는 P3~P8 은 현행 동작을 테스트로 고정만 해두었다가 별도 작업으로 닫았다. 각 건마다 실패하는 테스트를 먼저 쓰고(고정해 둔 특성 테스트의 기대값을 새 동작으로 갱신) 수정했으며, `public/data` 실제 콘텐츠를 파싱한 JSON 을 수정 전후로 덤프해 **의도한 차이만 있는지 확인**했다.
 
-| # | 결함 | 현재 영향 | 처리 |
+| # | 결함 | 처리 | 커밋 |
 |---|---|---|---|
-| P1 | `<details>`/코드펜스가 없는 문항이 다음 문항의 정답·코드를 가져감 | 잠재 (현 콘텐츠에서는 미발생) | ✅ 수정 (`9a85fcc`) |
-| P2 | `split('\n')` 이라 CRLF 문서에서 본문에 `\r` 잔류 | 잠재 (autocrlf=true 인 Windows 클론) | ✅ 수정 (`9a85fcc`) |
-| P3 | SQL 드릴 10문제의 `code` 가 실제 쿼리가 아니라 앞의 예제 테이블 — 첫 코드펜스만 읽는다 | **실발생**, `/quiz` 에서 SQL 문제의 쿼리가 안 보임 | 미수정 |
-| P4 | 함정 라벨 7종 하드코딩 → `**최다출제 함정**` 누락 (40문제 중 J-01) | 실발생, 함정이 answer 본문으로 흘러감 | 미수정 |
-| P5 | `출력` 낱말 경계가 없어 `출력 형식은…` 같은 문장 뒤를 `expectedOutput` 으로 오인 | 잠재 | 미수정 |
-| P6 | `loadProgress` 에 try/catch 가 없어 손상된 JSON 이 예외로 터짐 | 잠재 (ErrorBoundary 가 받음) | 미수정 |
-| P7 | `saveProgress` 가 `QuotaExceededError` 를 처리하지 않음 | 잠재 (5MB 근접 시) | 미수정 |
-| P8 | 학습시간 날짜 키는 UTC, 요일 라벨은 로컬 시각 기준 → 자정 근처 불일치 | 잠재 | 미수정 |
+| P1 | `<details>`/코드펜스가 없는 문항이 다음 문항의 정답·코드를 가져감 | ✅ 수정 | `9a85fcc` |
+| P2 | `split('\n')` 이라 CRLF 문서에서 본문에 `\r` 잔류 | ✅ 수정 | `9a85fcc` |
+| P3 | 첫 코드펜스만 읽어 SQL 드릴의 실제 쿼리가 화면에 안 보임 | ✅ 수정 — 규칙 교체 + `context` 필드 신설 | `f130c9b` |
+| P4 | 함정 라벨 7종 하드코딩 → `**최다출제 함정**` 누락 | ✅ 수정 — 라벨 목록 폐기, `**라벨**: 본문` 패턴 판정 | `aaa78ed` |
+| P5 | `출력` 낱말 경계가 없어 문장 속 "출력" 뒤를 `expectedOutput` 으로 오인 | ✅ 수정 — 줄머리 `출력:` 만 인식 | `69c79f2` |
+| P6 | `loadProgress` 에 try/catch 가 없어 손상된 JSON 이 예외로 터짐 | ✅ 수정 — 기본값 폴백 + 콘솔 경고, 원본은 보존 | `176b45b` |
+| P7 | `saveProgress` 가 `QuotaExceededError` 를 처리하지 않음 | ✅ 수정 — `false` 반환 + 콘솔 경고, 그 외 예외는 전파 | `176b45b` |
+| P8 | 학습시간 날짜 키는 UTC, 요일 라벨은 로컬 → 자정 근처 불일치 | ✅ 수정 — 로컬 기준 통일 (마이그레이션 없음, 아래 근거) | `8f6e96c` |
+
+#### P3 규칙 결정 근거 (40문제 전수 확인)
+
+문항의 코드펜스를 `<details>`(정답) 기준으로 앞뒤로 나눠 보면 세 형태뿐이다.
+
+| 형태 | 문항 | 지문 영역 코드펜스 |
+|---|---|---|
+| A | C-01~10, J-01~10, P-01~10 (30개) | 1개 — 언어 태그 있음(` ```c `/` ```java `/` ```python `) |
+| B | S-01, 02, 03, 04, 06, 07, 09, 10 (8개) | 2개 — [예제 테이블(태그 없음), 쿼리(` ```sql `)] |
+| C | S-05, S-08 (2개) | 1개 — 태그 없음(조건 지문/빈칸). `sql` 펜스는 정답 안에 있다 |
+
+형태 B 의 예제 테이블은 장식이 아니다. S-01 은 표의 행이 있어야 `AVG(급여)` 를 계산할 수 있고, S-04 는 `NULL` 이 몇 개인지 표를 봐야 `COUNT` 를 답할 수 있다. **예제 테이블과 쿼리를 둘 다 보여줘야 하므로 펜스 하나를 고르는 것으로는 부족하고 필드를 늘려야 한다.**
+
+채택한 규칙: **지문(`<details>` 이전) 코드펜스를 모두 모아, 언어 태그가 붙은 마지막 펜스를 `code`, 나머지를 `context` 로 분리한다.** 태그가 하나도 없으면 마지막 펜스가 `code` 다. A 는 `code` 그대로·`context` 빈 값, B 는 쿼리가 `code`·표가 `context`, C 는 지문이 `code`·`context` 빈 값 — 세 형태를 한 규칙으로 덮는다. `<details>` 를 경계로 둔 덕에 C 형태에서 정답의 `sql` 펜스를 문제 코드로 오인하지 않는다.
+
+표는 SQL 코드가 아니므로 구문 강조 대상이 아니다. `code` 는 기존대로 `SyntaxHighlighter`(`lang`)로, `context` 는 강조 없는 `ProblemContext` 블록으로 쿼리 위에 띄운다. `code` 는 문자열 그대로 두어(배열로 바꾸지 않아) 이미 저장된 오답노트가 깨지지 않는다.
+
+#### P8 마이그레이션 판단
+
+**하지 않는다.** 로그는 `{ "YYYY-MM-DD": 분 }` 합계 한 칸이라, 같은 키에 "전날 저녁 학습(키가 이미 정확)"과 "당일 새벽 학습(키가 하루 이름)"의 분이 섞여 들어가 있고 이를 되가를 정보가 남아 있지 않다. 한국(UTC+9)에서 UTC 키가 어긋나는 건 로컬 00:00~08:59 학습뿐이고 나머지 15시간은 이미 맞으므로, 키를 일괄 +1일 이동하면 맞던 다수를 망가뜨린다. 과거 기록은 그대로 두고 앞으로 쌓이는 값만 정확해진다.
+
+#### 남긴 것
+
+- `DashboardPage` 백업 파일명(`jungchogi_backup_<날짜>.json`)은 아직 `toISOString()`(UTC)을 쓴다. 저장 데이터가 아니라 다운로드 파일 이름이라 이번 범위에 넣지 않았다.
+- `expectedOutput` 은 현재 어느 화면에서도 쓰지 않는다. P5 수정으로 값이 정확해졌지만 눈에 보이는 변화는 없고, Phase 2(자동 채점)의 비교 기준값으로 쓸 때 효과가 난다.
+
+#### 검증
+
+`npm run lint` 0 errors · `npm test` 93 tests(81 → 93) · `npm run build` 성공. 실제 콘텐츠 파싱 결과 변경 필드 53개 = `context` 신규 40(값이 있는 건 SQL 8문제) + `code` 8 + J-01 `pitfall`/`answer` + S-08 `pitfall`/`answer` + J-02 `expectedOutput` 1. 단답형 100선·보강 119선 파싱 결과는 변화 없음.
+
+테스트 시간대는 `vite.config.js` 에서 테스트 실행 시에만 `Asia/Seoul` 로 고정한다. 실행 환경이 UTC 면(CI 가 그렇다) 로컬 날짜와 UTC 날짜가 언제나 같아 P8 회귀를 걸러내지 못하기 때문이다. 워커가 뜨기 전에 지정해야 하며, 테스트 안에서 `process.env.TZ` 를 바꾸거나 `vi.stubEnv` 를 써도 듣지 않는다.
 
 ---
 
@@ -233,7 +266,7 @@ Phase 1 완료 시 `response.usage`를 로깅해 이 표를 실측치로 교체�
 2. **접근 제어 수준**: 접근 코드로 충분한지, 본인만 쓰는 앱이면 코드 없이 Vercel 배포 보호(Password Protection)로 대체할지
 3. **TypeScript 전환**: Phase 0에서 도메인 타입만 `.d.ts`로 둘지, 전체 TS 전환까지 갈지
 4. **Phase 순서**: 플래너(3)를 채점(2)보다 앞당길지 — 플래너가 이 앱의 차별점이라면 2↔3 교체 가능
-5. **파서 결함 P3~P8 처리 시점**: §5 표의 미수정 항목을 Phase 1 앞에 별도로 닫을지, 해당 화면을 손대는 Phase 에 묶을지 (특히 P3 은 실사용자에게 보이는 결함)
+5. ~~**파서 결함 P3~P8 처리 시점**~~ → **결정됨(2026-09-02)**: Phase 1 앞에 별도로 닫았다. §5 "Phase 0 에서 드러난 파서·스토리지 결함" 참조
 
 ---
 
