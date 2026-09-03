@@ -177,6 +177,11 @@ function selectWrongNotes() {
     .map((entry) => entry.slim);
 }
 
+// 서버(`lib/ai/guard.js`)는 맵 필드의 값 타입을 엄격히 본다 —
+// quizResults 는 문자열, studyTime 은 유한한 수, dayChecks 는 불리언이어야 하고
+// 하나라도 어긋나면 요청 전체가 400 이다. 손상되거나 구버전 형식이 섞인 값이
+// 계획 생성을 통째로 막지 않도록 여기서 다듬어 보낸다.
+
 function recentStudyTime() {
   const log = getStudyTimeLog();
   const recent = {};
@@ -184,21 +189,27 @@ function recentStudyTime() {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const key = toLocalDateKey(d);
-    if (key in log) recent[key] = log[key];
+    if (Number.isFinite(log[key])) recent[key] = log[key];
   }
   return recent;
 }
 
 function cappedQuizResults() {
   const results = loadProgress('quiz_results', {}) || {};
-  const entries = Object.entries(results).slice(0, SNAPSHOT_LIMITS.quizResults);
+  const entries = Object.entries(results)
+    .filter(([, verdict]) => typeof verdict === 'string')
+    .slice(0, SNAPSHOT_LIMITS.quizResults);
   return Object.fromEntries(entries);
 }
 
 function completedDayChecks() {
   const checks = loadProgress('day_checks', {}) || {};
   // 완료한 Day 만 보낸다 — 서버는 1~14 를 알고 있으므로 false 는 정보가 아니다
-  return Object.fromEntries(Object.entries(checks).filter(([, done]) => !!done));
+  return Object.fromEntries(
+    Object.entries(checks)
+      .filter(([, done]) => !!done)
+      .map(([day]) => [day, true])
+  );
 }
 
 /**

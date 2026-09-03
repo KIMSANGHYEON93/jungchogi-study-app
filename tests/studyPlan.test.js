@@ -164,6 +164,19 @@ describe('buildPlanSnapshot — 정상 데이터', () => {
     ]);
   });
 
+  it('서버가 요구하는 타입에 맞게 맵 값을 다듬는다', () => {
+    // 손상되거나 구버전 형식이 섞인 값이 그대로 나가면 서버가 400 을 낸다.
+    saveProgress('day_checks', { 1: 1, 2: 'yes', 3: true, 4: 0 });
+    saveProgress('quiz_results', { 'C-01': 'correct', 'C-02': 3, 'C-03': null });
+    saveProgress('study_time', { '2026-09-03': 25, '2026-09-02': '40' });
+
+    const snapshot = buildPlanSnapshot({});
+
+    expect(snapshot.dayChecks).toEqual({ 1: true, 2: true, 3: true });
+    expect(snapshot.quizResults).toEqual({ 'C-01': 'correct' });
+    expect(snapshot.studyTime).toEqual({ '2026-09-03': 25 });
+  });
+
   it('대응하는 교재 출처가 없는 오답은 뺀다', () => {
     saveProgress('wrong_notes', [codeNote('C-01'), { id: 'X', source: '알 수 없음' }]);
     expect(buildPlanSnapshot({}).wrongNotes.map((n) => n.id)).toEqual(['C-01']);
