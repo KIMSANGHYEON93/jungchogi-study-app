@@ -179,7 +179,7 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 | **0. 기반 정비** | 문서·테스트·CI·드러난 결함 해소 | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 93 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build), 파서·스토리지 결함 P1~P8 수정 | lint 0 errors · test 93/93 · build 성공 (로컬 확인) | ✅ |
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, `AiExplainPanel`, `domain/aiSource.js`, 오답노트·코드퀴즈에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | 🔷 **코드 완료 · 라이브 검증 대기** (구현·테스트 267/267·lint·build 통과. 실제 API 호출은 키가 있는 환경에서 `.env.example` 하단 6단계 절차를 밟아야 닫힌다) |
 | **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner(`betaTool`, zod 불필요), 도구 5종(`lib/ai/tools/`), `lib/ai/spacedRepetition.js`, `domain/studyPlan.js`, `usePlanStream`, `TodayPlanCard`, `study_plan_<date>` 저장(최근 7개), `/study?day=` · `/search?q=` 딥링크 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | 🔷 **코드 완료 · 라이브 검증 대기** (테스트 482/482 · lint · build 통과. < 60s 완주와 구조화 출력+도구 조합은 키가 있는 환경에서 `.env.example` 7~10 항으로 확인) |
-| **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
+| **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`(구조화 출력), `domain/grading.js`, `useAiGrade`, `AiGradePanel`, `services/aiTransport.js`(공용 전송 계층), QuizPage·ExamPage 연동, 평가셋 `tests/eval/grading.json` 30건 + `scripts/eval-grading.mjs` | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | 🔷 **코드 완료 · 평가셋 측정 미완** (테스트 640/640 · lint · build 통과. 일치율 측정은 실제 호출 30건이 필요해 `.env.example` 11~16항으로 닫는다) |
 | **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
 
@@ -200,9 +200,38 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 - **문항 단위 딥링크는 못 걸었다.** QuizPage·FlashcardPage·WrongNotePage가 문항 인덱스를 내부
   `useState`로만 갖고 URL을 읽지 않는다. 화면 단위(`/study?day=N`, `/search?q=`)까지만 연결했다.
   문항 딥링크를 걸려면 세 페이지의 상태 소유권을 URL로 옮겨야 하는데 기존 동작을 바꾸는 변경이라 미룬다.
-- **`get_weak_categories`의 정답률 정의가 잠정적이다.** `quiz_results`에 `'answered'`만 저장돼
-  정답/오답 구분이 없다. 현재 정의: 시도 = `quizResults` ∪ 오답노트, 오답 = 오답노트 중 미숙달.
-  Phase 3 자동 채점이 `correct|incorrect`를 남기면 조일 수 있다.
+- ~~`get_weak_categories`의 정답률 정의가 잠정적이다~~ → **Phase 3에서 조였다**(아래 Phase 3 노트).
+
+### Phase 3 구현 노트 (2026-09-03)
+
+- **구조화 출력에 `strict` 플래그는 없다.** SDK 타입 `BetaJSONOutputFormat`은 `{type, schema}` 두 필드뿐이고,
+  `strict: true`는 도구(`Tool`) 쪽 필드다(Phase 2의 도구 5종이 쓰는 그 자리). 구조화 출력은 스키마 준수가
+  기능 자체의 보장이라 플래그가 없다. 호출은 `client.beta.messages.parse(params)`(폴백을 쓰므로 beta 네임스페이스),
+  `output_config: { effort, format: { type: 'json_schema', schema } }`. **zod 불필요.**
+- **구조화 출력은 `minimum`/`maximum`/`multipleOf`를 지원하지 않는다.** `score` 0~100, `confidence` 0~1을
+  스키마로 못 박지 못해 `description`으로 알리고 서버 `normalizeGrade`가 응답을 받은 뒤 조인다.
+- **`quiz_results` 값이 세 개가 됐다** — `'correct'`/`'incorrect'`(채점 결과) + `'answered'`(정답 확인만 하고
+  채점 안 한 상태. 기존 데이터도 이 값). **마이그레이션은 불가능하다**(레거시에 정오 정보가 없음).
+  대신 읽는 쪽 4곳이 세 값을 모두 다룬다: 대시보드 진도·정답률, QuizPage 진행바, 플래너 스냅샷,
+  서버 `get_weak_categories`. **진도는 세 값을 다 세고, 정답률은 채점분만으로 계산한다** —
+  레거시를 정답으로도 오답으로도 세면 통계가 조용히 틀어진다.
+- `get_weak_categories`의 규칙: **아는 것이 추정을 이긴다.** `'correct'`/`'incorrect'`는 확정으로 세고,
+  `'answered'`와 계약 밖 값은 오답노트 기반 추정으로 폴백. 미숙달 노트라도 최근 `'correct'`면 오답이 아니고,
+  숙달 노트라도 최근 `'incorrect'`면 오답이다.
+- **정답 조기 노출 차단**: `feedback`·`missedPoints`가 정답을 설명하므로 화면이 정답을 이미 공개한
+  시점(코드 퀴즈 `submitted`, 모의고사 `phase === 'result'`)에만 패널을 렌더한다. 시험 중에는 노드 자체가 없다.
+- `confidence < 0.6`이면 **저장하지 않고** 자기 채점으로 넘긴다. 읽을 수 없는 confidence는 0으로 본다
+  (모르면 자기 채점으로 떨어지는 쪽이 안전).
+
+### Phase 3 에서 남긴 것 (다음 회차 후보)
+
+- **평가셋 30건 측정 미완.** `node scripts/eval-grading.mjs` — 실제 호출 30건, 회당 약 $0.01 추정 → 1회 약 $0.3.
+- **모의고사 결과는 `quiz_results`에 쓰지 않는다.** 이 맵은 id만 키로 쓰는 평평한 구조이고 코드 퀴즈
+  40문항 진도(`quizDone/40`)가 여기 걸려 있어, 모의고사 단답형 id가 섞이면 진도가 40을 넘는다.
+  모의고사 채점을 약점 분석에 반영하려면 별도 키(`exam_results`)와 스냅샷 필드가 필요하다(서버 계약 변경).
+- **`partial`은 `'incorrect'`로 접어 저장한다.** 저장 계약에 중간값이 없다.
+- 클라이언트가 `userAnswer`를 서버 상한(2,000자)에 맞춰 미리 자르지 않는다. 초과하면 400 →
+  "직접 채점해 주세요" 안내로 떨어져 학습은 이어지지만, 미리 자르는 편이 낫다.
 
 ### Phase 0 에서 드러난 파서·스토리지 결함 — **전건 해소 (2026-09-02)**
 
