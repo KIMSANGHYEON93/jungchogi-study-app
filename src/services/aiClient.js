@@ -1,9 +1,10 @@
 // AI 엔드포인트 클라이언트.
 //
-// 전송(SSE 파싱·취소·오류 정규화)은 `sseClient.js` 가 맡고, 여기서는
-// 엔드포인트별 요청 본문과 프레임 payload 해석만 한다.
+// 전송(헤더·취소·오류 정규화)은 `aiTransport.js`, SSE 프레임 파싱은
+// `sseClient.js` 가 맡고, 여기서는 엔드포인트별 요청 본문과 응답 해석만 한다.
 
-import { postSseStream, AiRequestError } from './sseClient';
+import { postSseStream } from './sseClient';
+import { postAiJson, AiRequestError } from './aiTransport';
 
 export { AiRequestError };
 
@@ -36,8 +37,23 @@ export { AiRequestError };
  * @property {boolean} aborted
  */
 
+/**
+ * @typedef {Object} GradeRequest
+ * @property {import('../domain/aiSource.js').GradeKind} kind 코드 트레이싱인지 단답형인지
+ * @property {AiSource} source
+ * @property {string} id 문항 ID (예: '042', 'C-07')
+ * @property {string} [userAnswer] 사용자가 적은 답
+ */
+
+/**
+ * @typedef {Object} GradeResponse
+ * @property {object|null} result 서버가 돌려준 채점 결과 원본 (취소 시 null)
+ * @property {boolean} aborted 사용자가 취소해 중간에 끝났는지
+ */
+
 export const TUTOR_ENDPOINT = '/api/ai/tutor';
 export const PLAN_ENDPOINT = '/api/ai/plan';
+export const GRADE_ENDPOINT = '/api/ai/grade';
 
 /**
  * `/api/ai/tutor` 를 호출해 해설을 스트리밍으로 받는다 (BLUEPRINT §4.1).
@@ -114,4 +130,40 @@ export async function streamPlan(snapshot, options = {}) {
     throw new AiRequestError('UPSTREAM', '계획을 받지 못했습니다. 다시 시도해 주세요.');
   }
   return { plan, usage: done.usage ?? null, events, aborted: false };
+}
+
+/**
+ * `/api/ai/grade` 를 호출해 답안 채점을 받는다 (BLUEPRINT §4.2).
+ *
+ * 해설·플래너와 달리 **스트리밍이 아니다** — 구조화 출력 JSON 한 번이다.
+ * 그래도 접근 코드 헤더와 오류 코드 집합은 같은 계층(`aiTransport.js`)을 써서
+ * 화면이 엔드포인트별로 다른 실패를 배우지 않아도 되게 한다.
+ *
+ * 결과의 형태 검증(§4.2 스키마)은 도메인(`domain/grading.js`)이 맡는다 —
+ * 플래너에서 `streamPlan` → `normalizePlan` 로 나눈 것과 같은 경계다.
+ *
+ * @param {GradeRequest} request
+ * @param {{signal?: AbortSignal}} [options]
+ * @returns {Promise<GradeResponse>}
+ */
+export async function gradeAnswer(request, options = {}) {
+  const { data, aborted } = await postAiJson(
+    GRADE_ENDPOINT,
+    {
+      kind: request.kind,
+      source: request.source,
+      id: request.id,
+      // undefined 를 보내면 JSON 에서 키가 통째로 사라져 서버가 400 을 낸다
+      userAnswer: request.userAnswer ?? '',
+    },
+    { signal: options.signal }
+  );
+
+  if (aborted) return { result: null, aborted: true };
+
+  // 채점 결과로 볼 수 없는 응답은 재시도가 답이므로 UPSTREAM 으로 접는다.
+  if (!data || typeof data !== 'object' || typeof data.verdict !== 'string') {
+    throw new AiRequestError('UPSTREAM', '채점 결과를 받지 못했습니다. 다시 시도해 주세요.');
+  }
+  return { result: data, aborted: false };
 }
