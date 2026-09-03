@@ -15,6 +15,7 @@ import {
   toLocalDateKey,
 } from '../utils/storage';
 import { toAiSource } from './aiSource';
+import { isGeneratedItem } from './generatedItems';
 
 /**
  * `/api/ai/plan` 요청에 실리는 학습자 스냅샷 (BLUEPRINT §4.3).
@@ -151,6 +152,10 @@ function selectWrongNotes() {
 
   return notes
     .map((note) => {
+      // AI 변형 문항은 여기서 걸린다 — `toAiSource` 가 변형에 null 을 준다.
+      // 스냅샷 계약은 "식별자만 보내고 상세는 서버가 교재에서 다시 찾는다"인데
+      // 변형 id 는 교재에 없다. 보내면 서버가 근거를 못 찾은 채 계획에 넣거나
+      // 60건 상한을 교재 문항 대신 잡아먹는다. 오답노트 화면에는 그대로 남는다.
       const source = toAiSource(note);
       if (!source) return null; // 교재 출처를 못 찾으면 서버가 문항을 찾을 수 없다
       const due = dueKeys.has(`${note.source}|${note.id}`);
@@ -202,6 +207,10 @@ function cappedQuizResults() {
   const results = loadProgress('quiz_results', {}) || {};
   const entries = Object.entries(results)
     .filter(([, verdict]) => typeof verdict === 'string')
+    // 변형 id 는 서버가 교재에서 못 찾아 get_weak_categories 에서 어차피 버려진다.
+    // 200개 상한을 쓸모없는 값이 잡아먹지 않게 여기서 뺀다.
+    // (변형 채점은 `variant_results` 에 따로 쌓이지만, 옛 데이터가 섞였을 수 있다)
+    .filter(([id]) => !isGeneratedItem({ id }))
     .slice(0, SNAPSHOT_LIMITS.quizResults);
   return Object.fromEntries(entries);
 }

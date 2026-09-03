@@ -23,6 +23,10 @@ import {
   listStudyPlanDates,
   pruneStudyPlans,
   MAX_STORED_PLANS,
+  getIncludeVariants,
+  setIncludeVariants,
+  VARIANT_RESULTS_KEY,
+  variantKnownKey,
 } from '../src/utils/storage.js';
 
 const PREFIX = 'jungchogi_';
@@ -459,6 +463,61 @@ describe('listStudyPlanDates / pruneStudyPlans', () => {
   it('전체 초기화가 플랜 키도 함께 지우도록 jungchogi_ 접두사를 쓴다', () => {
     save('2026-09-03');
     const keys = Object.keys(localStorage).filter((k) => k.includes('study_plan'));
+    expect(keys.every((k) => k.startsWith(PREFIX))).toBe(true);
+  });
+});
+
+// ─── AI 변형 문제 (Phase 4) ───
+
+describe('변형 포함 설정', () => {
+  it('기본값은 꺼짐이다', () => {
+    // 교재가 아닌 AI 생성 문항은 옵트인으로 들어온다 —
+    // 기존 사용자의 덱 크기·진도 분모가 아무 조작 없이 바뀌면 안 된다
+    expect(getIncludeVariants()).toBe(false);
+  });
+
+  it('켜면 저장되고 다시 읽힌다', () => {
+    setIncludeVariants(true);
+    expect(getIncludeVariants()).toBe(true);
+    expect(localStorage.getItem(PREFIX + 'include_variants')).toBe('true');
+  });
+
+  it('껐다 켜기를 되풀이해도 마지막 값이 남는다', () => {
+    setIncludeVariants(true);
+    setIncludeVariants(false);
+    expect(getIncludeVariants()).toBe(false);
+  });
+
+  it('저장값이 손상돼 있으면 꺼짐으로 본다', () => {
+    localStorage.setItem(PREFIX + 'include_variants', '{그렇다');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(getIncludeVariants()).toBe(false);
+  });
+
+  it('불리언이 아닌 값이 들어 있어도 꺼짐으로 본다', () => {
+    localStorage.setItem(PREFIX + 'include_variants', '"true"');
+    expect(getIncludeVariants()).toBe(false);
+  });
+});
+
+describe('변형 진도 키', () => {
+  it('교재 진도 키와 이름이 겹치지 않는다', () => {
+    // quiz_results·flashcard_known_* 는 "문항 수가 고정된" 분모(40·100·24)에
+    // 걸려 있다. 변형 진도가 같은 맵에 들어가면 진도가 100% 를 넘는다.
+    expect(VARIANT_RESULTS_KEY).not.toBe('quiz_results');
+    expect(variantKnownKey('quiz100')).not.toBe('flashcard_known_quiz100');
+    expect(variantKnownKey('bogang119')).not.toBe('flashcard_known_bogang119');
+  });
+
+  it('덱마다 다른 키를 쓴다', () => {
+    expect(variantKnownKey('quiz100')).not.toBe(variantKnownKey('bogang119'));
+  });
+
+  it('전체 초기화가 함께 지우도록 jungchogi_ 접두사 아래 쌓인다', () => {
+    saveProgress(VARIANT_RESULTS_KEY, { 'C-01-v1': 'correct' });
+    saveProgress(variantKnownKey('quiz100'), { '001-v1': true });
+    const keys = Object.keys(localStorage).filter((k) => k.includes('variant'));
+    expect(keys).toHaveLength(2);
     expect(keys.every((k) => k.startsWith(PREFIX))).toBe(true);
   });
 });

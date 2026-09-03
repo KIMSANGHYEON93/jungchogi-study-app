@@ -251,3 +251,46 @@ export function saveStudyPlan(plan) {
     .forEach((d) => clearProgress(STUDY_PLAN_PREFIX + d));
   return saveProgress(STUDY_PLAN_PREFIX + date, plan);
 }
+
+// ─── AI 변형 문제 (Phase 4) ───
+
+/**
+ * 변형 문항을 학습에 포함할지.
+ *
+ * **기본값은 꺼짐이다.** 변형은 AI 가 만든 문항이고 교재가 아니다.
+ * 검수를 통과했더라도 정답의 근거는 교재보다 약하며, 켜는 순간 덱 크기가 바뀐다.
+ * 기존 사용자가 아무것도 하지 않았는데 학습 대상이 늘어나는 쪽이 더 나쁘므로 옵트인으로 둔다.
+ */
+const INCLUDE_VARIANTS_KEY = 'include_variants';
+
+/** 변형 채점 결과. `quiz_results` 와 **절대 섞지 않는다** (아래 주석 참조) */
+export const VARIANT_RESULTS_KEY = 'variant_results';
+
+/**
+ * 변형 카드의 "외움" 표시. 덱마다 따로 둔다.
+ *
+ * 교재 진도 맵(`quiz_results`·`flashcard_known_*`)은 분모가 고정돼 있다 —
+ * 코드 퀴즈 40, 단답형 100, 보강 24. 변형 진도가 같은 맵에 들어가면
+ * 대시보드 진도가 100% 를 넘고 종합 달성률이 부풀려진다.
+ * 그래서 키를 갈라 둔다. 모의고사 결과를 `quiz_results` 에 쓰지 않는 것과 같은 이유다.
+ *
+ * @param {string} deck `quiz100` | `bogang119`
+ */
+export function variantKnownKey(deck) {
+  return `variant_known_${deck}`;
+}
+
+/** @returns {boolean} */
+export function getIncludeVariants() {
+  // 정확히 boolean true 일 때만 켜진 것으로 본다 —
+  // 손상됐거나 구버전 형식인 값이 "켜짐"으로 읽히면 안 된다
+  return loadProgress(INCLUDE_VARIANTS_KEY, false) === true;
+}
+
+/**
+ * @param {boolean} on
+ * @returns {boolean} 저장 성공 여부
+ */
+export function setIncludeVariants(on) {
+  return saveProgress(INCLUDE_VARIANTS_KEY, on === true);
+}

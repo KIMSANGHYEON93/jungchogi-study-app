@@ -4,6 +4,8 @@
 // 서버 API 는 "어느 교재 파일에서 나온 문항인가"(quiz100/codedrill/bogang)를 받는다.
 // 두 이름 체계를 여기 한 곳에서만 잇는다.
 
+import { isGeneratedItem } from './generatedItems.js';
+
 /** @typedef {'quiz100'|'codedrill'|'bogang'} AiSource */
 
 /**
@@ -23,6 +25,12 @@ export const AI_SOURCE = {
  * @returns {AiSource|null} 대응하는 출처가 없으면 null — 호출부는 AI 해설을 띄우지 않는다
  */
 export function toAiSource(item) {
+  // AI 변형 문항은 교재에 없다. 서버(`lib/ai/guard.js`)의 ID_PATTERN 은 교재 id 형식만
+  // 통과시키므로 `042-v1` 같은 변형 id 는 /api/ai/tutor·/api/ai/grade 에서 400 이 된다.
+  // "출처가 없다"고 답해 호출부가 아예 버튼을 띄우지 않게 한다 —
+  // 눌러 봐야 오류 문구만 나오는 버튼은 없느니만 못하다.
+  if (isGeneratedItem(item)) return null;
+
   switch (item?.source) {
     case 'quiz':
       // 코드 퀴즈 화면은 코드트레이싱 드릴만 낸다

@@ -389,3 +389,30 @@ describe('planItemTitle / planItemLink', () => {
     expect(planItemLink({ type: 'drill' })).toBeNull();
   });
 });
+
+// 스냅샷 계약은 "식별자만 보내고 상세는 서버가 교재에서 다시 찾는다"이다.
+// 변형 id 는 교재에 없어 서버가 못 찾는다 — 보내면 근거 없는 계획 항목이 되거나
+// 60건 상한을 잡아먹는다. 오답노트 화면에는 그대로 남고, 계획에서만 빠진다.
+describe('buildPlanSnapshot — AI 변형 문항', () => {
+  it('generated 표시가 있는 오답은 스냅샷에서 뺀다', () => {
+    saveProgress('wrong_notes', [codeNote('C-01'), codeNote('C-01-v1', { generated: true })]);
+    expect(buildPlanSnapshot({}).wrongNotes.map((n) => n.id)).toEqual(['C-01']);
+  });
+
+  it('표시가 없어도 변형 id 모양이면 뺀다', () => {
+    saveProgress('wrong_notes', [codeNote('C-01'), codeNote('C-02-v3')]);
+    expect(buildPlanSnapshot({}).wrongNotes.map((n) => n.id)).toEqual(['C-01']);
+  });
+
+  it('quizResults 에서도 변형 id 를 뺀다', () => {
+    // 서버 get_weak_categories 는 못 찾는 id 를 그냥 버리지만,
+    // 200개 상한을 교재 문항이 아닌 값이 잡아먹는다
+    saveProgress('quiz_results', { 'C-01': 'incorrect', 'C-01-v1': 'correct' });
+    expect(buildPlanSnapshot({}).quizResults).toEqual({ 'C-01': 'incorrect' });
+  });
+
+  it('변형만 있는 오답노트면 빈 목록을 보낸다', () => {
+    saveProgress('wrong_notes', [codeNote('C-01-v1', { generated: true })]);
+    expect(buildPlanSnapshot({}).wrongNotes).toEqual([]);
+  });
+});
