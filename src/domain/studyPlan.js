@@ -21,7 +21,9 @@ import { toAiSource } from './aiSource';
  * @typedef {Object} PlanSnapshot
  * @property {string|null} examDate 시험일(ISO 날짜). D-Day 미설정이면 null
  * @property {SnapshotWrongNote[]} wrongNotes 오답 식별자·메타데이터 (본문은 빼고 보낸다)
- * @property {Record<string, 'correct'|'incorrect'>} quizResults
+ * @property {Record<string, 'correct'|'incorrect'|'answered'>} quizResults
+ *   Phase 3 채점 결과와 레거시 값('answered' = 시도했으나 정오 미상)이 섞여 있다.
+ *   서버(`lib/ai/tools/snapshotTools.js`)가 세 값을 구분해 약점 분석에 쓴다.
  * @property {Record<string, number>} studyTime 최근 며칠간 `YYYY-MM-DD → 분`
  * @property {Record<string, true>} dayChecks 완료 표시한 Day 만
  * @property {number} availableMinutes 오늘 낼 수 있는 학습 시간(분)
@@ -194,6 +196,8 @@ function recentStudyTime() {
   return recent;
 }
 
+// 값을 세 가지로 좁히지 않고 문자열이면 통과시킨다 — 서버가 계약 밖 값을
+// 레거시(정오 미상)와 같게 다루므로, 여기서 걸러 정보를 없애는 쪽이 더 위험하다.
 function cappedQuizResults() {
   const results = loadProgress('quiz_results', {}) || {};
   const entries = Object.entries(results)
