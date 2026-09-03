@@ -2076,3 +2076,153 @@ html { scroll-behavior: smooth; }
   font-size: 0.9rem;
   font-weight: 600;
 }
+
+/* ─── AI 채점 패널 (Phase 3 자동 채점) ─── */
+
+.ai-grade {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
+.ai-grade-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.ai-grade-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-right: auto;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.ai-grade-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+
+.ai-grade-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.ai-grade-spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.ai-grade-result {
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+/* 확신이 낮은 판정은 테두리로도 구분한다 — 색만으로 알리지 않는다 */
+.ai-grade-result.ai-grade-uncertain {
+  border-style: dashed;
+  border-color: var(--warning);
+}
+
+.ai-grade-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.ai-grade-score {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ai-grade-uncertain-badge {
+  margin-left: auto;
+}
+
+.ai-grade-fallback {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 0;
+  font-size: 0.85rem;
+  color: var(--warning);
+}
+
+.ai-grade-feedback {
+  margin: var(--space-sm) 0 0;
+  line-height: 1.65;
+}
+
+.ai-grade-missed {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.2em;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.ai-grade-missed-item {
+  margin-bottom: 4px;
+}
+
+.ai-grade-error {
+  margin-top: var(--space-sm);
+}
+
+.ai-grade-error-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* ─── 자기 채점 (AI 채점의 폴백이자 기본 흐름) ─── */
+
+.self-grade {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--space-md);
+}
+
+.self-grade-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.self-grade-button {
+  font-size: 0.85rem;
+  padding: 6px 14px;
+}
+
+.self-grade-button.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.self-grade-state {
+  margin-left: auto;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
