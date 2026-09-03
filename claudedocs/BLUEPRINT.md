@@ -165,8 +165,44 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 
 `strict: true`, `additionalProperties:false`. 도구 호출 상한 12회, `max_tokens` 16000, 스트리밍 필수.
 
-### 4.4 `POST /api/ai/generate` — 변형 문제 생성 (Batch, 비동기)
-관리자용. `{ source, ids[], variantsPerItem }` → Batch 생성 → 결과를 `public/data/generated/*.json` 으로 커밋 (런타임 생성 아님). Phase 4 상세 설계.
+### 4.4 변형 문제 생성 — **스크립트로 구현. 엔드포인트 아님** (정정 2026-09-03)
+
+> 초안은 이 항목을 `POST /api/ai/generate` 로 적었다. **엔드포인트를 만들지 않는다.**
+> 산출물은 `scripts/generate-variants.mjs` 다. 근거 셋:
+> 1. **Vercel 서버리스는 파일시스템이 읽기 전용**이라 `public/data/generated/` 에 쓸 수 없다.
+> 2. 결과물은 런타임 생성이 아니라 **리포에 커밋되는 파일**이고, 커밋은 함수가 할 일이 아니다.
+> 3. **Batch 는 완료까지 최대 24시간** 걸린다. 함수 실행 시간(10s·Pro 60s) 안에 끝나지 않는다.
+>
+> 같은 이유로 접근 코드·레이트리밋(`lib/ai/guard.js`)도 여기에는 해당이 없다.
+> 이 스크립트는 리포를 가진 사람이 자기 키로 로컬에서 돌린다.
+
+```bash
+node scripts/generate-variants.mjs --source quiz100 --ids 001,002,042 --variants 2
+node scripts/generate-variants.mjs --source codedrill --category sql --variants 3
+node scripts/generate-variants.mjs --resume msgbatch_01ABC...   # 결과만 다시 수거
+node scripts/validate-generated.mjs                             # 계약 검증 (키 불필요)
+```
+
+**생성물 계약** — 프론트엔드와 공유하는 고정 shape. `public/data/generated/<source>.json`:
+
+```jsonc
+{
+  "version": 1,
+  "source": "quiz100",              // 원본 교재 source
+  "generatedAt": "2026-09-03T12:00:00.000Z",
+  "model": "claude-opus-5",
+  "reviewed": false,                // 사람 검수 통과 여부. false 면 앱이 쓰지 않는다
+  "items": [ /* 파서 출력 shape + variantOf + generated: true */ ]
+}
+```
+
+| source | `items[]` 필드 |
+|---|---|
+| `quiz100` · `bogang` | `{id, question, answer, category, variantOf, generated}` |
+| `codedrill` | `{id, title, context, code, lang, answer, expectedOutput, pitfall, variantOf, generated}` |
+
+`id` 는 `<원본 id>-v<n>` (예: `042-v1`) 이라 원본과 충돌하지 않는다. `variantOf` 는 원본 id.
+검수 절차는 `claudedocs/GENERATED_REVIEW.md`.
 
 ---
 
@@ -180,7 +216,7 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, `AiExplainPanel`, `domain/aiSource.js`, 오답노트·코드퀴즈에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | 🔷 **코드 완료 · 라이브 검증 대기** (구현·테스트 267/267·lint·build 통과. 실제 API 호출은 키가 있는 환경에서 `.env.example` 하단 6단계 절차를 밟아야 닫힌다) |
 | **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner(`betaTool`, zod 불필요), 도구 5종(`lib/ai/tools/`), `lib/ai/spacedRepetition.js`, `domain/studyPlan.js`, `usePlanStream`, `TodayPlanCard`, `study_plan_<date>` 저장(최근 7개), `/study?day=` · `/search?q=` 딥링크 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | 🔷 **코드 완료 · 라이브 검증 대기** (테스트 482/482 · lint · build 통과. < 60s 완주와 구조화 출력+도구 조합은 키가 있는 환경에서 `.env.example` 7~10 항으로 확인) |
 | **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`(구조화 출력), `domain/grading.js`, `useAiGrade`, `AiGradePanel`, `services/aiTransport.js`(공용 전송 계층), QuizPage·ExamPage 연동, 평가셋 `tests/eval/grading.json` 30건 + `scripts/eval-grading.mjs` | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | 🔷 **코드 완료 · 평가셋 측정 미완** (테스트 640/640 · lint · build 통과. 일치율 측정은 실제 호출 30건이 필요해 `.env.example` 11~16항으로 닫는다) |
-| **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
+| **4. 콘텐츠 생성** | 변형 문제·약점 카드 | `scripts/generate-variants.mjs`(Batch), `scripts/validate-generated.mjs`, `lib/ai/{variants,generated,batchRunner}.js`, 생성물 계약(§4.4)·검수 워크플로(`claudedocs/GENERATED_REVIEW.md`) | 생성 문항이 기존 파서·UI에서 그대로 동작 | 🔷 **코드 완료 · 실제 생성 대기** (SDK 모킹 테스트 89건. 파서 shape 일치는 테스트로 고정. 실제 Batch 실행은 키가 있는 환경에서 `.env.example` 17~20항으로 닫는다) |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
 
 ### Phase 2 구현 노트 (2026-09-03)
@@ -222,6 +258,46 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
   시점(코드 퀴즈 `submitted`, 모의고사 `phase === 'result'`)에만 패널을 렌더한다. 시험 중에는 노드 자체가 없다.
 - `confidence < 0.6`이면 **저장하지 않고** 자기 채점으로 넘긴다. 읽을 수 없는 confidence는 0으로 본다
   (모르면 자기 채점으로 떨어지는 쪽이 안전).
+
+### Phase 4 구현 노트 (2026-09-03)
+
+- **엔드포인트가 아니라 스크립트다.** §4.4 정정 참조 (읽기 전용 FS · 커밋되는 산출물 · 24시간 배치).
+- **Batch 호출 형태** (SDK 타입 `resources/messages/batches.d.ts` 로 확인):
+  `client.messages.batches.create({requests: [{custom_id, params}]})` — `params` 는
+  `MessageCreateParamsNonStreaming` 이라 `output_config.format` 구조화 출력이 그대로 된다.
+  `retrieve(id).processing_status` 를 폴링하고(`in_progress`·`canceling` 은 아직, `ended` 만 끝),
+  `await results(id)` 가 주는 JSONL 디코더를 `for await` 로 소비한다.
+- **서버측 폴백(`fallbacks`)은 Batch API 에서 거부된다.** Phase 1~3 요청과 여기가 다른 유일한 점이라
+  `lib/ai/client.js` 의 `build*Request` 를 재사용하지 않고 `lib/ai/variants.js` 가 따로 만든다.
+  (`thinking` 생략 · `effort` 는 `output_config` 안 · 구조화 출력에 `strict` 없음은 그대로.)
+- **결과는 순서를 보장하지 않는다.** `custom_id`(`<source>__<id>__v<n>`)로만 되맞춘다. 위치로
+  매칭하면 조용히 어긋나므로, 읽을 수 없는 `custom_id` 는 폴백하지 않고 실패로 남긴다.
+- **모델에게는 바꿀 것만 맡긴다.** `category`(단답형·보강)와 `lang`(드릴)은 원본에서 가져와
+  코드가 채운다 — 모델이 지어내면 화면의 분류·구문 강조가 조용히 어긋난다.
+  `id`·`variantOf`·`generated` 도 코드가 채운다. 스키마에는 `question`/`answer`(또는 드릴 6필드)만 둔다.
+- **재개 가능해야 한다.** 배치를 만든 **직후** `claudedocs/generated-batches/<batch_id>.json` 에
+  기록을 남긴다. 그 뒤 프로세스가 죽어도 `--resume <batch_id>` 로 결과만 다시 수거한다.
+  폴링은 5초에서 시작해 ×1.6, 60초 상한. 대기 상한을 넘기면 batch id 를 담아 던진다.
+- **비용은 실행 전에 알린다.** 요청 건수·추정 토큰·추정 비용(Batch 50% 할인 반영)을 찍고
+  `--yes` 가 없으면 확인을 받는다. 토큰은 글자 수 근사(한글 1.3자/토큰, 그 외 3.6자/토큰)라
+  ±50% 는 어긋난다 — 실제값은 끝난 뒤 결과의 `usage` 로 찍는다. `--all` 은 의도적으로 명시해야 한다.
+- **`reviewed: false` 는 계약이다.** 생성기는 언제나 false 로 쓰고, 사람이 검수 후 손으로 올린다.
+  앱은 `reviewed === true` 인 파일만 읽는다. 검증기는 형식만 보고 **정답의 정오는 못 본다** —
+  그래서 검수 절차를 `claudedocs/GENERATED_REVIEW.md` 에 문서로 남겼다.
+- **예시 생성물은 `tests/fixtures/generated/` 에 둔다.** `public/data/generated/` 에 두면
+  실제 생성물이 아닌 것을 앱이 집어간다.
+
+### Phase 4 에서 남긴 것
+
+- **실제 Batch 실행 미완.** 키가 필요하다. `--variants 2` 기준 추정: 단답형 100선 전체 200건 약 $4,
+  드릴 40문항 전체 80건 약 $2.9, 보강 119선 전체 238건 약 $5. 먼저 `--ids` 로 3~5문항만
+  돌려 프롬프트를 확인한 뒤 넓히는 것이 싸다.
+- **"약점 카드"는 만들지 않았다.** Phase 4 목표 열의 두 번째 항목인데, 약점 판정이
+  스냅샷(클라이언트 상태)에 달려 있어 오프라인 배치 스크립트로는 대상을 정할 수 없다.
+  플래너(`get_weak_categories`)가 이미 실시간으로 그 일을 한다 — 별도 배치가 필요한지부터 재검토.
+- **생성 문항은 오답노트·간격반복에 섞이면 id 규칙을 타야 한다.** `042-v1` 은 원본과 다른 키라
+  `wrong_notes` 에 그대로 들어간다. 원본을 틀린 사람에게 그 변형을 우선 보여주려면
+  `variantOf` 를 읽는 로직이 따로 필요하다 (이번 범위 밖).
 
 ### Phase 3 에서 남긴 것 (다음 회차 후보)
 
