@@ -216,7 +216,7 @@ node scripts/validate-generated.mjs                             # 계약 검증 
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, `AiExplainPanel`, `domain/aiSource.js`, 오답노트·코드퀴즈에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | 🔷 **코드 완료 · 라이브 검증 대기** (구현·테스트 267/267·lint·build 통과. 실제 API 호출은 키가 있는 환경에서 `.env.example` 하단 6단계 절차를 밟아야 닫힌다) |
 | **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner(`betaTool`, zod 불필요), 도구 5종(`lib/ai/tools/`), `lib/ai/spacedRepetition.js`, `domain/studyPlan.js`, `usePlanStream`, `TodayPlanCard`, `study_plan_<date>` 저장(최근 7개), `/study?day=` · `/search?q=` 딥링크 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | 🔷 **코드 완료 · 라이브 검증 대기** (테스트 482/482 · lint · build 통과. < 60s 완주와 구조화 출력+도구 조합은 키가 있는 환경에서 `.env.example` 7~10 항으로 확인) |
 | **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`(구조화 출력), `domain/grading.js`, `useAiGrade`, `AiGradePanel`, `services/aiTransport.js`(공용 전송 계층), QuizPage·ExamPage 연동, 평가셋 `tests/eval/grading.json` 30건 + `scripts/eval-grading.mjs` | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | 🔷 **코드 완료 · 평가셋 측정 미완** (테스트 640/640 · lint · build 통과. 일치율 측정은 실제 호출 30건이 필요해 `.env.example` 11~16항으로 닫는다) |
-| **4. 콘텐츠 생성** | 변형 문제·약점 카드 | `scripts/generate-variants.mjs`(Batch), `scripts/validate-generated.mjs`, `lib/ai/{variants,generated,batchRunner}.js`, 생성물 계약(§4.4)·검수 워크플로(`claudedocs/GENERATED_REVIEW.md`) | 생성 문항이 기존 파서·UI에서 그대로 동작 | 🔷 **코드 완료 · 실제 생성 대기** (SDK 모킹 테스트 89건. 파서 shape 일치는 테스트로 고정. 실제 Batch 실행은 키가 있는 환경에서 `.env.example` 17~20항으로 닫는다) |
+| **4. 콘텐츠 생성** | 변형 문제·약점 카드 | `scripts/generate-variants.mjs`(Batch), `scripts/validate-generated.mjs`, `lib/ai/{variants,generated,batchRunner}.js`, 생성물 계약(§4.4)·검수 워크플로(`claudedocs/GENERATED_REVIEW.md`), 앱 소비 쪽 `utils/generatedDeck.js`·`domain/generatedItems.js`·`useVariantPreference`·`GeneratedBadge`·`VariantToggle` + 5개 학습 화면 연동 | 생성 문항이 기존 파서·UI에서 그대로 동작 | 🔷 **코드 완료 · 실제 생성 대기** (테스트 866/866 · lint · build 통과. 파서 shape 일치와 `reviewed:false` 차단은 테스트로 고정. 실제 Batch 실행은 키가 있는 환경에서 `.env.example` 17~20항으로 닫는다) |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
 
 ### Phase 2 구현 노트 (2026-09-03)
@@ -308,6 +308,21 @@ node scripts/validate-generated.mjs                             # 계약 검증 
 - **`partial`은 `'incorrect'`로 접어 저장한다.** 저장 계약에 중간값이 없다.
 - 클라이언트가 `userAnswer`를 서버 상한(2,000자)에 맞춰 미리 자르지 않는다. 초과하면 400 →
   "직접 채점해 주세요" 안내로 떨어져 학습은 이어지지만, 미리 자르는 편이 낫다.
+
+### Phase 4 앱 소비 쪽 노트 (2026-09-03)
+
+- **`reviewed: false`인 생성물은 앱이 절대 쓰지 않는다.** AI가 만든 정답이 틀릴 수 있고 학습 앱에서는
+  그게 직접적인 해악이다. 사람 검수(`claudedocs/GENERATED_REVIEW.md`)를 통과해 `reviewed: true`로
+  올라간 파일만 덱에 들어간다. 테스트로 고정.
+- **변형 문항 id(`042-v1`)는 교재에 없다.** 이게 Phase 4에서 가장 많은 것을 깨뜨릴 뻔한 지점이다:
+  - AI 해설(`/api/ai/tutor`)·자동 채점(`/api/ai/grade`)은 `source+id`로 교재를 다시 찾는다.
+    서버 guard의 `ID_PATTERN`이 변형 id를 거절해 400이다 → `toAiSource`가 변형 문항에 `null`을 주고
+    **버튼이 아예 안 뜬다.** 눌러 봐야 오류 문구만 나오는 버튼은 없느니만 못하다.
+  - 플래너 스냅샷의 `quizResults`에서 변형 id를 제외한다(서버가 못 찾는 id로 200건 상한을 낭비하지 않게).
+  - 변형 채점 결과는 `variant_results` **별도 키**에 쌓는다. `quiz_results`는 id만 키로 쓰는 평평한 맵이고
+    코드 퀴즈 진도(`quizDone/40`)가 거기 걸려 있어, 변형이 섞이면 진도가 40을 넘는다.
+- SearchPage의 필터 키(`codeDrill`)와 교재 출처 이름(`codedrill`)이 달라 `SOURCE_CONFIG` 한 곳에서 맞춘다.
+- **생성물 파일이 없는 것이 정상 상태다.** 로더는 404를 오류가 아니라 "생성물 없음"으로 다룬다.
 
 ### Phase 0 에서 드러난 파서·스토리지 결함 — **전건 해소 (2026-09-02)**
 
