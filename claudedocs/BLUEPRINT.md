@@ -178,10 +178,31 @@ Tutor (신규)    : TutorSession(값객체: question, userAnswer, explanation)
 |---|---|---|---|---|
 | **0. 기반 정비** | 문서·테스트·CI·드러난 결함 해소 | `README.md` 현행화, 이 문서, Vitest 4 + jsdom(`tests/` 4파일 93 tests, 실제 콘텐츠 발췌 픽스처), `.github/workflows/ci.yml`(Node 22, lint→test→build), 파서·스토리지 결함 P1~P8 수정 | lint 0 errors · test 93/93 · build 성공 (로컬 확인) | ✅ |
 | **1. AI 인프라 + 오답 해설** | 서버 경계 확립 | `api/ai/tutor.js`, `lib/ai/{client,guard,content}.js`, `services/aiClient.js`, `useAiStream`, `AiExplainPanel`, `domain/aiSource.js`, 오답노트·코드퀴즈에 "AI 해설" 버튼 | 스트리밍 해설 동작, 접근 코드·레이트리밋 동작, `cache_read_input_tokens > 0` 확인 | 🔷 **코드 완료 · 라이브 검증 대기** (구현·테스트 267/267·lint·build 통과. 실제 API 호출은 키가 있는 환경에서 `.env.example` 하단 6단계 절차를 밟아야 닫힌다) |
-| **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner, 도구 5종, `StudyPlan` 저장, 대시보드 "오늘의 계획" 카드 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | ⏳ |
+| **2. 학습 플래너 에이전트** | 핵심 에이전트 (§7-4 로 채점보다 앞당김) | `api/ai/plan.js` + Tool Runner(`betaTool`, zod 불필요), 도구 5종(`lib/ai/tools/`), `lib/ai/spacedRepetition.js`, `domain/studyPlan.js`, `usePlanStream`, `TodayPlanCard`, `study_plan_<date>` 저장(최근 7개), `/study?day=` · `/search?q=` 딥링크 | 플랜 생성 < 60s, 도구 호출 로그, 재생성 가능 | 🔷 **코드 완료 · 라이브 검증 대기** (테스트 482/482 · lint · build 통과. < 60s 완주와 구조화 출력+도구 조합은 키가 있는 환경에서 `.env.example` 7~10 항으로 확인) |
 | **3. 자동 채점** | 자기 채점 → AI 보조 채점 | `api/ai/grade.js`, 구조화 출력 스키마, ExamPage/QuizPage 연동, confidence 폴백 | 채점 평가셋 30문항에서 사람 판정 일치율 측정·기록 | ⏳ |
 | **4. 콘텐츠 생성** | 변형 문제·약점 카드 | Batch 스크립트(`scripts/generate-variants.mjs`), 생성물 검수 워크플로 | 생성 문항이 기존 파서·UI에서 그대로 동작 | ⏳ |
 | **5. 평가·운영** | 품질/비용 관측 | 평가셋(`tests/eval/`), usage 로깅, 비용 리포트, 프롬프트 회귀 테스트 | Phase별 비용·정확도 수치 문서화 | ⏳ |
+
+### Phase 2 구현 노트 (2026-09-03)
+
+- **Tool Runner에 `zod`가 필요 없다.** `betaZodTool` 대신 `betaTool`(`@anthropic-ai/sdk/helpers/beta/json-schema`)에
+  raw JSON Schema를 주면 된다. plain JS(ESM)에서 import·실행 확인. 의존성 추가 0건.
+  `betaTool`은 `strict`를 인자로 받지 않아 `{...betaTool({...}), strict: true}`로 얹는다.
+- **구조화 출력과 도구 사용은 함께 쓸 수 있다.** 문서상 구조화 출력의 비호환은 citations·prefill 뿐이다.
+  400이 날 경우의 폴백(스키마를 시스템 프롬프트로 내리기)은 `extractPlan`이 이미 잡는다.
+- **도구 호출 상한 12회는 도구 래퍼가 직접 센다.** 한 턴에 여러 도구를 병렬로 부를 수 있어
+  Tool Runner의 `max_iterations`(=16, 안전망)와 같은 수가 아니다.
+- **`get_due_reviews`는 화면과 같은 판정이어야 한다.** `tests/plan-spaced-repetition.test.js`가
+  jsdom에서 `src/utils/storage.js`의 실제 `getSpacedRepetitionDue`를 import해 두 구현 결과를 직접 비교한다.
+- **스냅샷은 본문을 싣지 않는다.** 식별자·메타데이터만 보내고 상세는 서버가 교재에서 다시 찾는다.
+  화이트리스트 필드가 클라이언트·서버 양쪽에서 정확히 일치해야 한다 — 이 불일치로 결함 2건이 실제로 났다
+  (`addedAt` 누락 시 모든 미숙달 오답이 "즉시 복습 대기"로 잡힘, `dayChecks` 값이 `1`이면 요청 전체가 400).
+- **문항 단위 딥링크는 못 걸었다.** QuizPage·FlashcardPage·WrongNotePage가 문항 인덱스를 내부
+  `useState`로만 갖고 URL을 읽지 않는다. 화면 단위(`/study?day=N`, `/search?q=`)까지만 연결했다.
+  문항 딥링크를 걸려면 세 페이지의 상태 소유권을 URL로 옮겨야 하는데 기존 동작을 바꾸는 변경이라 미룬다.
+- **`get_weak_categories`의 정답률 정의가 잠정적이다.** `quiz_results`에 `'answered'`만 저장돼
+  정답/오답 구분이 없다. 현재 정의: 시도 = `quizResults` ∪ 오답노트, 오답 = 오답노트 중 미숙달.
+  Phase 3 자동 채점이 `correct|incorrect`를 남기면 조일 수 있다.
 
 ### Phase 0 에서 드러난 파서·스토리지 결함 — **전건 해소 (2026-09-02)**
 
