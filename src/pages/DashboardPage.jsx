@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { loadProgress, saveProgress, getWrongNotes, getExamDate, setExamDate, getWeeklyStudyTime, addStudyTime, getSpacedRepetitionDue, getStorageUsage, formatBytes } from '../utils/storage';
 import Icon from '../components/Icon';
 import TodayPlanCard from '../components/TodayPlanCard';
+import { summarizeQuizResults } from '../domain/grading';
 
 const STUDY_DAYS = [
   { day: 1, label: 'C언어', icon: 'type' },
@@ -76,7 +77,11 @@ export default function DashboardPage() {
   const flashcardDone = Object.values(flashcardKnown).filter(Boolean).length;
   const bogangTotal = 24;
   const bogangDone = Object.values(loadProgress('flashcard_known_bogang119', {})).filter(Boolean).length;
-  const quizDone = Object.keys(quizResults).length;
+  // quiz_results 에는 세 값이 섞여 있다: 'correct' | 'incorrect' | 레거시 'answered'.
+  // 진도(= 시도한 문항 수)는 셋을 다 세고, 정답률은 채점된 것만으로 낸다 —
+  // 레거시에는 정오 정보가 없어 정답으로도 오답으로도 셀 수 없다.
+  const quizSummary = summarizeQuizResults(quizResults);
+  const quizDone = quizSummary.attempted;
   const quizTotal = 40;
   const wrongTotal = wrongNotes.length;
   const wrongReviewed = wrongNotes.filter((n) => n.reviewCount > 0).length;
@@ -320,6 +325,12 @@ export default function DashboardPage() {
             <div className="fill" style={{ width: `${(quizDone / quizTotal) * 100}%` }} />
           </div>
           <div className="dash-stat-sub">{Math.round((quizDone / quizTotal) * 100)}% 완료</div>
+          {/* 채점분이 하나도 없으면 정답률을 만들지 않는다 — 0% 로 보이면 실제와 다르다 */}
+          {quizSummary.accuracy !== null && (
+            <div className="dash-stat-sub">
+              정답률 {quizSummary.accuracy}% ({quizSummary.graded}문항 채점)
+            </div>
+          )}
         </div>
 
         <div className="card dash-stat-card" onClick={() => navigate('/wrong')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/wrong'); } }} role="button" tabIndex={0} style={{ cursor: 'pointer' }}>
