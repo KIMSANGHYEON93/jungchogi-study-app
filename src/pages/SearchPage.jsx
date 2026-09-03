@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
@@ -19,8 +20,11 @@ const SOURCE_CONFIG = {
 export default function SearchPage() {
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
+  const [searchParams] = useSearchParams();
   const [allItems, setAllItems] = useState([]);
-  const [query, setQuery] = useState('');
+  // `/search?q=...` 로 들어오면 그 검색어로 연다 (오늘의 계획의 섹션 링크).
+  // 첫 렌더에만 읽는다 — 이후 입력은 사용자가 소유한다.
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [results, setResults] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [sourceFilter, setSourceFilter] = useState('전체');

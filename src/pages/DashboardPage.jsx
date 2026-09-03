@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadProgress, saveProgress, getWrongNotes, getExamDate, setExamDate, getWeeklyStudyTime, addStudyTime, getSpacedRepetitionDue, getStorageUsage, formatBytes } from '../utils/storage';
 import Icon from '../components/Icon';
+import TodayPlanCard from '../components/TodayPlanCard';
 
 const STUDY_DAYS = [
   { day: 1, label: 'C언어', icon: 'type' },
@@ -185,6 +186,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* 오늘의 계획 (AI 학습 플래너) */}
+      <TodayPlanCard />
 
       {/* 간격 반복 알림 상세 */}
       {spacedDue.length > 0 && (

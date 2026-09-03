@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import MarkdownViewer from '../components/MarkdownViewer';
 import useStudyTimer from '../hooks/useStudyTimer';
 import { fetchMarkdown } from '../utils/mdCache';
@@ -24,9 +25,20 @@ const FILES = [
   { name: '합격 전략 가이드', file: '정보처리기사_실기_합격전략.md' },
 ];
 
+// `/study?day=6` → FILES 인덱스. Day N 은 FILES[N-1] 이다.
+// 오늘의 계획 카드의 study_day 항목이 이 경로로 들어온다.
+function indexForDayParam(raw) {
+  const day = Number(raw);
+  if (!Number.isInteger(day) || day < 1 || day > 14) return 0;
+  return day - 1;
+}
+
 export default function StudyPage() {
   useStudyTimer();
-  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [searchParams] = useSearchParams();
+  // 첫 렌더에만 URL 을 읽는다 — 이후 선택은 사용자 조작이 소유한다.
+  // effect 로 동기화하지 않으므로 set-state-in-effect 가 생기지 않는다.
+  const [selectedIdx, setSelectedIdx] = useState(() => indexForDayParam(searchParams.get('day')));
   // 로드 결과에 해당 인덱스를 함께 담아 loading/content 를 파생 상태로 계산한다
   const [loaded, setLoaded] = useState({ idx: -1, text: '' });
   const loading = loaded.idx !== selectedIdx;
