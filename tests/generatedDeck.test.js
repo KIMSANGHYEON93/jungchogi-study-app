@@ -126,29 +126,46 @@ describe('fetchGeneratedItems', () => {
 describe('applyGeneratedItems', () => {
   it('포함이 켜져 있으면 원본 뒤에 변형을 붙여 준다', async () => {
     vi.stubGlobal('fetch', vi.fn(() => textResponse(JSON.stringify(file()))));
-    const items = await applyGeneratedItems(QUIZ_BASE, 'quiz100', true);
+    const { items } = await applyGeneratedItems(QUIZ_BASE, 'quiz100', true);
     expect(items.map((i) => i.id)).toEqual(['001', '002', '001-v1']);
   });
 
-  // 꺼져 있으면 네트워크도 타지 않는다 — 기존 화면과 동작이 완전히 같아야 한다
-  it('포함이 꺼져 있으면 원본을 그대로 주고 파일을 읽지 않는다', async () => {
-    const fetchMock = vi.fn(() => textResponse(JSON.stringify(file())));
-    vi.stubGlobal('fetch', fetchMock);
-    const items = await applyGeneratedItems(QUIZ_BASE, 'quiz100', false);
+  it('포함이 꺼져 있으면 원본을 그대로(같은 배열로) 준다', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => textResponse(JSON.stringify(file()))));
+    const { items } = await applyGeneratedItems(QUIZ_BASE, 'quiz100', false);
     expect(items).toBe(QUIZ_BASE);
-    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // 꺼져 있어도 몇 개가 있는지는 알아야 한다 —
+  // 그래야 쓸 수 있는 변형이 없을 때 켜기 버튼 자체를 안 띄운다
+  it('꺼져 있어도 쓸 수 있는 변형이 몇 개인지 알려준다', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => textResponse(JSON.stringify(file()))));
+    const { available } = await applyGeneratedItems(QUIZ_BASE, 'quiz100', false);
+    expect(available).toBe(1);
+  });
+
+  it('생성물이 없으면 available 은 0 이다', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => textResponse('Not Found', 404)));
+    const { items, available } = await applyGeneratedItems(QUIZ_BASE, 'quiz100', true);
+    expect(items).toEqual(QUIZ_BASE);
+    expect(available).toBe(0);
+  });
+
+  // ★ 검수 전 파일은 "쓸 수 있는 변형 0개"다 — 켜기 버튼조차 뜨지 않는다
+  it('reviewed 가 false 면 available 도 0 이다', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => textResponse(JSON.stringify(file({ reviewed: false })))));
+    const { items, available } = await applyGeneratedItems(QUIZ_BASE, 'quiz100', true);
+    expect(items).toEqual(QUIZ_BASE);
+    expect(available).toBe(0);
   });
 
   it('계약을 어긴 문항은 빼고 경고한다', async () => {
     const broken = variant({ id: '002-v1', variantOf: '002', answer: '' });
     vi.stubGlobal('fetch', vi.fn(() => textResponse(JSON.stringify(file({ items: [variant(), broken] })))));
-    const items = await applyGeneratedItems(QUIZ_BASE, 'quiz100', true);
+    const { items, available } = await applyGeneratedItems(QUIZ_BASE, 'quiz100', true);
     expect(items.map((i) => i.id)).toEqual(['001', '002', '001-v1']);
+    // 계약을 어긴 항목은 셈에서도 빠진다
+    expect(available).toBe(1);
     expect(warn.mock.calls.flat().join(' ')).toContain('002-v1');
-  });
-
-  it('생성물이 없으면 원본을 그대로 준다', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => textResponse('Not Found', 404)));
-    expect(await applyGeneratedItems(QUIZ_BASE, 'quiz100', true)).toEqual(QUIZ_BASE);
   });
 });

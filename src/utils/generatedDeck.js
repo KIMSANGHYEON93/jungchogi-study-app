@@ -73,19 +73,25 @@ export function fetchGeneratedItems(source) {
 /**
  * 원본 덱에 변형을 합쳐 준다. 화면은 이 함수 하나만 부르면 된다.
  *
- * `include` 가 꺼져 있으면 네트워크도 타지 않고 원본을 **그대로**(같은 배열 참조) 준다 —
+ * `include` 가 꺼져 있어도 **생성물이 있는지는 확인한다**. 쓸 수 있는 변형이
+ * 하나도 없으면 화면이 켜기 버튼 자체를 띄우지 않기 위해서다 — 눌러도 아무 일이
+ * 없는 설정을 보여주는 쪽이 요청 한 번보다 나쁘다. 파일은 정적이고 캐시되므로
+ * 확인 비용은 교재당 한 번이다.
+ *
+ * 꺼져 있을 때 `items` 는 원본 **그대로**(같은 배열 참조)다 —
  * 변형 기능을 끈 사용자는 Phase 3 까지와 완전히 같은 화면을 본다.
  *
  * @param {object[]} baseItems 파서가 만든 교재 문항
  * @param {string} source
  * @param {boolean} include 사용자가 변형 포함을 켰는가
- * @returns {Promise<object[]>}
+ * @returns {Promise<{items: object[], available: number}>}
+ *   `available` 은 검수·계약을 모두 통과해 **실제로 쓸 수 있는** 변형 수다
  */
 export function applyGeneratedItems(baseItems, source, include) {
-  if (!include) return Promise.resolve(baseItems);
   return fetchGeneratedItems(source).then((generated) => {
     const { items, warnings } = mergeGenerated(baseItems, generated, source);
     warnAll(warnings);
-    return items;
+    const available = items.length - baseItems.length;
+    return { items: include ? items : baseItems, available };
   });
 }

@@ -560,6 +560,35 @@ button:active { transform: scale(0.97); }
 .badge-success { background: rgba(74,222,128,0.2); color: var(--success); }
 .badge-warning { background: rgba(251,191,36,0.2); color: var(--warning); }
 .badge-danger { background: rgba(248,113,113,0.2); color: var(--danger); }
+/* AI 변형 문항 — 교재 문항이 이미 쓰는 네 색과 겹치지 않도록 accent 를 쓴다 */
+.badge-accent { background: rgba(var(--accent-rgb),0.2); color: var(--accent); }
+
+/* ═══ AI 변형 문제 (Phase 4) ═══ */
+
+/* 필터 바의 다른 버튼과 같은 생김새를 쓰되, 켜졌을 때만 accent 로 구분한다 */
+.variant-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.variant-toggle.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+/* 정답을 읽는 바로 그 자리에서 출처를 한 번 더 알린다 */
+.generated-notice {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.08);
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
 
 /* Dashboard */
 .recommend-card {
