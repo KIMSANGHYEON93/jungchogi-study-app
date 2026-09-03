@@ -44,7 +44,12 @@ export default function usePlanStream() {
 
   /**
    * 계획 생성을 시작한다. 진행 중이던 요청은 취소하고 상태를 초기화한다.
+   *
+   * 만들어진 계획을 그대로 돌려준다 — 호출부(카드)가 effect 없이 핸들러 안에서
+   * 바로 저장할 수 있어야 set-state-in-effect 를 만들지 않는다.
+   *
    * @param {import('../domain/studyPlan.js').PlanSnapshot} snapshot
+   * @returns {Promise<import('../domain/studyPlan.js').StudyPlan|null>}
    */
   const start = useCallback(async (snapshot) => {
     controllerRef.current?.abort();
@@ -66,12 +71,12 @@ export default function usePlanStream() {
           setState((prev) => ({ ...prev, steps: [...prev.steps, describeToolEvent(event)] }));
         },
       });
-      if (!isCurrent()) return;
+      if (!isCurrent()) return null;
 
       // 취소는 오류가 아니다 — 받은 진행 표시만 남기고 조용히 멈춘다.
       if (aborted) {
         setState((prev) => ({ ...prev, status: 'cancelled' }));
-        return;
+        return null;
       }
 
       const normalized = normalizePlan(plan, { date: toLocalDateKey() });
@@ -81,11 +86,12 @@ export default function usePlanStream() {
           status: 'error',
           error: { code: 'UPSTREAM', message: '계획을 이해할 수 없는 형태로 받았습니다.' },
         }));
-        return;
+        return null;
       }
       setState((prev) => ({ ...prev, status: 'done', plan: normalized, usage: usage ?? null }));
+      return normalized;
     } catch (err) {
-      if (!isCurrent()) return;
+      if (!isCurrent()) return null;
       setState((prev) => ({
         ...prev,
         status: 'error',
@@ -93,6 +99,7 @@ export default function usePlanStream() {
         error: { code: err?.code ?? 'UPSTREAM', message: err?.message ?? '알 수 없는 오류' },
         usage: null,
       }));
+      return null;
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null;
     }

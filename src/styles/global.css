@@ -1883,3 +1883,196 @@ html { scroll-behavior: smooth; }
   font-size: 0.82rem;
   color: var(--text-dim);
 }
+
+/* ─── 오늘의 계획 카드 (Phase 2 학습 플래너) ─── */
+
+.plan-card {
+  margin-bottom: var(--space-lg);
+}
+
+.plan-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.plan-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.plan-card-date {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-right: auto;
+}
+
+.plan-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.plan-card-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+
+.plan-minutes-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.plan-minutes-select {
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  width: auto;
+}
+
+.plan-card-hint {
+  margin-top: var(--space-sm);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.plan-card-warn {
+  color: var(--danger);
+}
+
+/* 진행 표시 — 60초까지 걸릴 수 있어 화면이 살아 있다는 신호가 필요하다 */
+.plan-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.plan-steps {
+  list-style: none;
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+}
+
+.plan-step {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  padding: 2px 0 2px var(--space-md);
+  border-left: 2px solid var(--border);
+}
+
+.plan-step:last-child {
+  color: var(--primary);
+  border-left-color: var(--primary);
+}
+
+.plan-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.plan-item {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.plan-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.plan-item-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-right: auto;
+}
+
+.plan-item-minutes {
+  flex-shrink: 0;
+}
+
+.plan-item-why {
+  margin: var(--space-xs) 0 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.plan-item-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.plan-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-sm);
+}
+
+.plan-total {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.plan-rationale {
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-md);
+  border-left: 3px solid var(--accent);
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+.plan-risks {
+  list-style: none;
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+}
+
+.plan-risk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.85rem;
+  color: var(--warning);
+}
+
+.plan-error {
+  margin-top: var(--space-sm);
+}
+
+.plan-error-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
