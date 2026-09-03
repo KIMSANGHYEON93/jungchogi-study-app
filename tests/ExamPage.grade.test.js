@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ExamPage from '../src/pages/ExamPage.jsx';
 import { loadProgress } from '../src/utils/storage.js';
+import { clearGeneratedCache } from '../src/utils/generatedDeck.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -64,12 +65,15 @@ let gradeResponder;
 
 beforeEach(() => {
   localStorage.clear();
+  clearGeneratedCache();
   gradeResponder = () => jsonResponse(GRADE);
   vi.stubGlobal(
     'fetch',
     vi.fn((url) => {
       const u = String(url);
       if (u.includes('/api/ai/grade')) return Promise.resolve(gradeResponder());
+      // 생성물(Phase 4)은 아직 커밋되지 않은 상태 — 이 테스트의 관심사가 아니다
+      if (u.includes('/data/generated/')) return Promise.resolve(new Response('Not Found', { status: 404 }));
       if (u.includes('코드트레이싱')) return Promise.resolve(new Response(DRILL_MD, { status: 200 }));
       return Promise.resolve(new Response(QUIZ_MD, { status: 200 }));
     })

@@ -5,16 +5,23 @@ import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
 import useStudyTimer from '../hooks/useStudyTimer';
+import useVariantPreference from '../hooks/useVariantPreference';
 import { fetchMarkdown } from '../utils/mdCache';
+import { applyGeneratedItems } from '../utils/generatedDeck';
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
 import AiGradePanel from '../components/AiGradePanel';
+import GeneratedBadge from '../components/GeneratedBadge';
+import VariantToggle from '../components/VariantToggle';
 import { toAiSource, toGradeKind } from '../domain/aiSource';
+import { isGeneratedItem } from '../domain/generatedItems';
 import { useThemeContext } from '../hooks/useTheme';
 
 // 모의고사는 단답형(quiz100)과 코드 트레이싱(codedrill)을 섞어 낸다.
 // 어느 교재에서 온 문항인지·어떻게 채점할 문항인지는 화면이 아니라 문항이 정한다.
-const examItem = (q) => ({ source: 'exam', type: q?.type });
+// AI 변형 문항이면 `toAiSource` 가 null 을 주고 채점 패널이 통째로 사라진다 —
+// 서버 guard 의 ID_PATTERN 이 변형 id 를 거절해 400 이 나기 때문이다.
+const examItem = (q) => ({ source: 'exam', type: q?.type, generated: q?.generated, id: q?.id });
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -47,16 +54,26 @@ export default function ExamPage() {
   // 문제 풀 로드
   const [quizPool, setQuizPool] = useState([]);
   const [codePool, setCodePool] = useState([]);
+  const [includeVariants, changeIncludeVariants] = useVariantPreference();
+  const [variantsAvailable, setVariantsAvailable] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
-      fetchMarkdown('정처기_단답형_100선.md'),
-      fetchMarkdown('정처기_코드트레이싱_드릴.md'),
-    ]).then(([quizMd, codeMd]) => {
-      setQuizPool(parseQuiz(quizMd).map((q) => ({ ...q, type: 'quiz' })));
-      setCodePool(parseCodeDrill(codeMd).map((q) => ({ ...q, type: 'code' })));
+      fetchMarkdown('정처기_단답형_100선.md').then((md) =>
+        applyGeneratedItems(parseQuiz(md), 'quiz100', includeVariants)
+      ),
+      fetchMarkdown('정처기_코드트레이싱_드릴.md').then((md) =>
+        applyGeneratedItems(parseCodeDrill(md), 'codedrill', includeVariants)
+      ),
+    ]).then(([quiz, code]) => {
+      if (cancelled) return;
+      setQuizPool(quiz.items.map((q) => ({ ...q, type: 'quiz' })));
+      setCodePool(code.items.map((q) => ({ ...q, type: 'code' })));
+      setVariantsAvailable(quiz.available + code.available);
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [includeVariants]);
 
   const startExam = () => {
     // 단답형 12문제 + 코드 8문제 = 20문제
@@ -115,6 +132,16 @@ export default function ExamPage() {
             disabled={quizPool.length === 0}>
             {quizPool.length === 0 ? '문제 로딩 중...' : '시험 시작'}
           </button>
+
+          {/* 변형 포함은 시험을 시작하기 전에만 고를 수 있다 — 출제 풀이 바뀌는 설정이라
+              시험 중에 바꾸면 이미 낸 문제와 앞뒤가 맞지 않는다 */}
+          <div className="filter-bar" style={{ justifyContent: 'center', marginTop: 24, marginBottom: 0 }}>
+            <VariantToggle
+              enabled={includeVariants}
+              available={variantsAvailable}
+              onChange={changeIncludeVariants}
+            />
+          </div>
         </div>
       </div>
     );
@@ -154,8 +181,11 @@ export default function ExamPage() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
             <span style={{ fontWeight: 700 }}>문제 {currentQ + 1} / 20</span>
-            <span className={`badge ${q.type === 'code' ? 'badge-warning' : 'badge-primary'}`}>
-              {q.type === 'code' ? `코드(${q.lang?.toUpperCase()})` : '단답형'}
+            <span style={{ display: 'flex', gap: 8 }}>
+              <GeneratedBadge item={q} />
+              <span className={`badge ${q.type === 'code' ? 'badge-warning' : 'badge-primary'}`}>
+                {q.type === 'code' ? `코드(${q.lang?.toUpperCase()})` : '단답형'}
+              </span>
             </span>
           </div>
 
@@ -223,8 +253,11 @@ export default function ExamPage() {
         <div key={i} className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <strong>문제 {i + 1}. {q.type === 'quiz' ? q.question : q.title}</strong>
-            <span className={`badge ${q.type === 'code' ? 'badge-warning' : 'badge-primary'}`}>
-              {q.type === 'code' ? q.lang?.toUpperCase() : '단답형'}
+            <span style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <GeneratedBadge item={q} />
+              <span className={`badge ${q.type === 'code' ? 'badge-warning' : 'badge-primary'}`}>
+                {q.type === 'code' ? q.lang?.toUpperCase() : '단답형'}
+              </span>
             </span>
           </div>
           <div style={{ marginTop: 8 }}>
@@ -281,6 +314,9 @@ export default function ExamPage() {
                     pitfall: q.pitfall,
                     userAnswer: answers[i]?.trim() || '',
                     category: q.category,
+                    // 표시를 함께 남긴다 — 오답노트 화면이 배지를 붙이고
+                    // AI 해설 버튼을 띄우지 않는 근거가 된다
+                    generated: isGeneratedItem(q) || undefined,
                   });
                   setWrongIds((prev) => new Set(prev).add(q.id));
                 }}

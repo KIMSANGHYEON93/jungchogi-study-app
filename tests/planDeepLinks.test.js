@@ -40,7 +40,12 @@ beforeEach(() => {
   vi.stubGlobal('scrollTo', vi.fn());
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(new Response('# 빈 문서\n', { status: 200 })))
+    // 생성물(Phase 4)은 아직 커밋되지 않은 상태 — 이 테스트의 관심사가 아니다
+    vi.fn((url) =>
+      String(url).includes('/data/generated/')
+        ? Promise.resolve(new Response('Not Found', { status: 404 }))
+        : Promise.resolve(new Response('# 빈 문서\n', { status: 200 }))
+    )
   );
 });
 

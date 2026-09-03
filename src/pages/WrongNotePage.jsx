@@ -6,6 +6,7 @@ import { getWrongNotes, removeWrongNote, markWrongNoteReviewed, clearAllWrongNot
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
 import AiExplainPanel from '../components/AiExplainPanel';
+import GeneratedBadge, { GeneratedAnswerNotice } from '../components/GeneratedBadge';
 import { toAiSource } from '../domain/aiSource';
 import { useThemeContext } from '../hooks/useTheme';
 
@@ -137,6 +138,7 @@ export default function WrongNotePage() {
                     {note.reviewCount > 0 && (
                       <span className="badge badge-success">복습 {note.reviewCount}회</span>
                     )}
+                    <GeneratedBadge item={note} />
                   </div>
                   <h3 style={{ fontSize: '1rem', marginTop: 8, lineHeight: 1.6 }}>
                     {note.type === 'code' ? `${note.id}. ${note.title}` : `${note.id}. ${note.question}`}
@@ -195,6 +197,7 @@ export default function WrongNotePage() {
                   {(!isRetrying || retrySubmitted) && (
                     <div className="quiz-result correct" style={{ marginTop: 12 }}>
                       <h4 style={{ marginBottom: 8, color: 'var(--success)' }}>정답</h4>
+                      <GeneratedAnswerNotice item={note} />
                       <div className="md-content" style={{ fontSize: '0.9rem' }}>
                         <ReactMarkdown>{note.answer}</ReactMarkdown>
                       </div>
@@ -227,7 +230,8 @@ export default function WrongNotePage() {
                     </button>
                   </div>
 
-                  {/* 대응하는 교재 출처를 못 찾으면 toAiSource 가 null 을 주고 패널은 아무것도 그리지 않는다 */}
+                  {/* 대응하는 교재 출처를 못 찾으면 toAiSource 가 null 을 주고 패널은 아무것도 그리지 않는다.
+                      AI 변형 문항도 여기서 걸린다 — 서버 guard 의 ID_PATTERN 이 변형 id 를 거절해 400 이다. */}
                   <AiExplainPanel
                     source={toAiSource(note)}
                     id={note.id}

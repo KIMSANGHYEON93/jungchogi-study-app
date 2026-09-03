@@ -7,14 +7,20 @@ import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
 import { parseBogang } from '../utils/parseBogang';
 import { fetchMarkdown } from '../utils/mdCache';
+import { applyGeneratedItems } from '../utils/generatedDeck';
+import useVariantPreference from '../hooks/useVariantPreference';
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
+import GeneratedBadge, { GeneratedAnswerNotice } from '../components/GeneratedBadge';
+import VariantToggle from '../components/VariantToggle';
 import { useThemeContext } from '../hooks/useTheme';
 
+// `generatedSource` 는 생성물 파일 이름(BLUEPRINT §4.4)이다.
+// 이 화면의 필터 키(codeDrill)와 교재 출처 이름(codedrill)이 달라 한 곳에서 맞춰 둔다.
 const SOURCE_CONFIG = {
-  quiz100: { label: '단답형 100선', badge: 'badge-primary', file: '정처기_단답형_100선.md', parser: 'quiz' },
-  codeDrill: { label: '코드 트레이싱', badge: 'badge-warning', file: '정처기_코드트레이싱_드릴.md', parser: 'code' },
-  bogang: { label: '암기 119선', badge: 'badge-danger', file: '정처기_보강_기출분석_암기119선.md', parser: 'bogang' },
+  quiz100: { label: '단답형 100선', badge: 'badge-primary', file: '정처기_단답형_100선.md', parser: 'quiz', generatedSource: 'quiz100' },
+  codeDrill: { label: '코드 트레이싱', badge: 'badge-warning', file: '정처기_코드트레이싱_드릴.md', parser: 'code', generatedSource: 'codedrill' },
+  bogang: { label: '암기 119선', badge: 'badge-danger', file: '정처기_보강_기출분석_암기119선.md', parser: 'bogang', generatedSource: 'bogang' },
 };
 
 export default function SearchPage() {
@@ -30,34 +36,45 @@ export default function SearchPage() {
   const [sourceFilter, setSourceFilter] = useState('전체');
   const [showCount, setShowCount] = useState(20);
   const [loading, setLoading] = useState(true);
+  const [includeVariants, changeIncludeVariants] = useVariantPreference();
+  const [variantsAvailable, setVariantsAvailable] = useState(0);
   const inputRef = useRef(null);
 
   // 전체 데이터 로드
   useEffect(() => {
+    let cancelled = false;
+    const load = (key, parse) =>
+      fetchMarkdown(SOURCE_CONFIG[key].file).then((md) =>
+        applyGeneratedItems(parse(md), SOURCE_CONFIG[key].generatedSource, includeVariants)
+      );
+
     Promise.all([
-      fetchMarkdown(SOURCE_CONFIG.quiz100.file),
-      fetchMarkdown(SOURCE_CONFIG.codeDrill.file),
-      fetchMarkdown(SOURCE_CONFIG.bogang.file),
-    ]).then(([quizMd, codeMd, bogangMd]) => {
-      const quizItems = parseQuiz(quizMd).map((q) => ({
+      load('quiz100', parseQuiz),
+      load('codeDrill', parseCodeDrill),
+      load('bogang', parseBogang),
+    ]).then(([quiz, code, bogang]) => {
+      if (cancelled) return;
+      const quizItems = quiz.items.map((q) => ({
         ...q,
         source: 'quiz100',
         searchText: `${q.question} ${q.answer} ${q.category}`.toLowerCase(),
       }));
-      const codeItems = parseCodeDrill(codeMd).map((q) => ({
+      const codeItems = code.items.map((q) => ({
         ...q,
         source: 'codeDrill',
         searchText: `${q.title} ${q.context} ${q.code} ${q.answer} ${q.pitfall || ''} ${q.lang}`.toLowerCase(),
       }));
-      const bogangItems = parseBogang(bogangMd).map((q) => ({
+      const bogangItems = bogang.items.map((q) => ({
         ...q,
         source: 'bogang',
         searchText: `${q.question} ${q.answer} ${q.category}`.toLowerCase(),
       }));
       setAllItems([...quizItems, ...codeItems, ...bogangItems]);
+      setVariantsAvailable(quiz.available + code.available + bogang.available);
       setLoading(false);
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [includeVariants]);
 
   // 검색 실행 (디바운스)
   const debounceRef = useRef(null);
@@ -138,6 +155,11 @@ export default function SearchPage() {
             {f}
           </button>
         ))}
+        <VariantToggle
+          enabled={includeVariants}
+          available={variantsAvailable}
+          onChange={changeIncludeVariants}
+        />
       </div>
 
       {/* 결과 수 */}
@@ -181,6 +203,7 @@ export default function SearchPage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
                       <span className={`badge ${config.badge}`}>{config.label}</span>
+                      <GeneratedBadge item={item} />
                       {item.category && <span className="badge badge-success">{item.category}</span>}
                       {item.lang && <span className="badge badge-warning">{item.lang.toUpperCase()}</span>}
                     </div>
@@ -207,6 +230,7 @@ export default function SearchPage() {
                     )}
                     <div className="quiz-result correct" style={{ marginTop: item.code ? 12 : 0 }}>
                       <h4 style={{ marginBottom: 8, color: 'var(--success)' }}>정답 / 해설</h4>
+                      <GeneratedAnswerNotice item={item} />
                       <div className="md-content" style={{ fontSize: '0.85rem' }}>
                         <ReactMarkdown>{highlightText(item.answer, query)}</ReactMarkdown>
                       </div>

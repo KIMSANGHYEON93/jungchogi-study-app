@@ -110,6 +110,8 @@ beforeEach(() => {
   localStorage.clear();
   clearGeneratedCache();
   generated = generatedFile();
+  // 검수 전 생성물 경고는 이 테스트가 일부러 만드는 상황이다 — 출력만 막는다
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.stubGlobal(
     'fetch',
     vi.fn((url) => {
