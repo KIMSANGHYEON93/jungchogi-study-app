@@ -28,15 +28,17 @@ import { toAiSource } from './aiSource';
  */
 
 /**
+ * 서버(`lib/ai/guard.js`)가 화이트리스트로 남기는 필드와 같은 집합이다.
+ * 그 밖의 필드를 실어 보내도 서버가 버리므로 토큰만 낭비된다.
  * @typedef {Object} SnapshotWrongNote
  * @property {'quiz100'|'codedrill'|'bogang'} source 서버가 문항을 찾을 때 쓰는 교재 출처
  * @property {string} id
+ * @property {string} [question] 짧게 자른 문항 라벨
  * @property {string} [category]
- * @property {string} [lang]
  * @property {number} reviewCount
+ * @property {number} addedAt
  * @property {number} [lastReviewed]
  * @property {boolean} mastered
- * @property {boolean} due 간격 반복 복습 대기 여부
  */
 
 /**
@@ -109,7 +111,26 @@ export const SNAPSHOT_LIMITS = {
   wrongNotes: 60,
   quizResults: 200,
   studyTimeDays: 14,
+  /** 문항 라벨(question)의 최대 길이 — 서버는 500자에서 자른다 */
+  noteLabel: 120,
 };
+
+// 코드 문항에는 category 대신 lang 이 있다. 서버의 get_weak_categories 는
+// 교재에서 category 를 찾지 못하면 노트의 category 로 떨어지므로, 대시보드
+// "오답 유형 분석"과 같은 규칙으로 언어를 카테고리 이름으로 옮겨 준다.
+const LANG_CATEGORY = { c: 'C언어', java: 'Java', python: 'Python', sql: 'SQL' };
+
+function categoryOf(note) {
+  if (note.category) return note.category;
+  if (!note.lang) return '';
+  return LANG_CATEGORY[note.lang] || String(note.lang).toUpperCase();
+}
+
+function labelOf(note) {
+  const raw = note.question || note.title;
+  if (typeof raw !== 'string' || raw === '') return '';
+  return raw.slice(0, SNAPSHOT_LIMITS.noteLabel);
+}
 
 /** 정렬 키: 최근에 손댄 오답일수록 먼저 */
 function recencyOf(note) {
@@ -137,11 +158,17 @@ function selectWrongNotes() {
         id: String(note.id),
         reviewCount: Number(note.reviewCount) || 0,
         mastered: !!note.mastered,
-        due,
+        // 서버가 간격 반복(1/3/7일)을 다시 계산할 때 쓰는 기준 시각.
+        // 빠뜨리면 서버가 "정보 없음 → 즉시 대기"로 보고 전부 대기로 판정한다.
+        addedAt: Number(note.addedAt) || 0,
       };
-      if (note.category) slim.category = note.category;
-      if (note.lang) slim.lang = note.lang;
       if (note.lastReviewed) slim.lastReviewed = note.lastReviewed;
+      const category = categoryOf(note);
+      if (category) slim.category = category;
+      const label = labelOf(note);
+      if (label) slim.question = label;
+      // `due` 는 보내지 않는다 — 서버가 같은 규칙으로 다시 계산하고, 스냅샷
+      // 화이트리스트에도 없어 어차피 버려진다. 여기서는 무엇을 남길지 고르는 데만 쓴다.
       return { slim, rank: priorityOf(note, due), recency: recencyOf(note) };
     })
     .filter(Boolean)

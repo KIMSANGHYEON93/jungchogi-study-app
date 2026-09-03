@@ -104,16 +104,51 @@ describe('buildPlanSnapshot — 정상 데이터', () => {
     expect(snapshot.studyTime).toEqual({ '2026-09-02': 40, '2026-09-03': 25 });
   });
 
-  it('오답노트는 식별자·메타데이터만 보내고 본문(코드·정답)은 빼놓는다', () => {
+  it('오답노트는 서버가 읽는 필드만 보내고 본문(코드·정답)은 빼놓는다', () => {
     const snapshot = buildPlanSnapshot({});
     expect(snapshot.wrongNotes).toHaveLength(2);
+    // lib/ai/guard.js 의 화이트리스트와 같은 집합 — 나머지는 서버가 어차피 버린다
     expect(Object.keys(snapshot.wrongNotes[0]).sort()).toEqual(
-      ['due', 'id', 'lang', 'mastered', 'reviewCount', 'source'].sort()
+      ['addedAt', 'category', 'id', 'mastered', 'question', 'reviewCount', 'source'].sort()
     );
     const json = JSON.stringify(snapshot);
     for (const heavy of ['code', 'context', 'answer', 'pitfall', 'userAnswer', 'title']) {
       expect(json).not.toContain(`"${heavy}"`);
     }
+  });
+
+  it('간격 반복 판정에 필요한 시각(addedAt·lastReviewed)을 함께 보낸다', () => {
+    const reviewed = NOW.getTime() - 2 * DAY;
+    saveProgress('wrong_notes', [codeNote('C-01', { reviewCount: 1, lastReviewed: reviewed })]);
+
+    const note = buildPlanSnapshot({}).wrongNotes[0];
+
+    // 서버는 이 두 값으로 1/3/7일 간격을 다시 계산한다.
+    // 빠뜨리면 서버가 "정보 없음 → 즉시 대기"로 보고 전부 대기로 판정한다.
+    expect(note.addedAt).toBe(NOW.getTime() - DAY);
+    expect(note.lastReviewed).toBe(reviewed);
+  });
+
+  it('카테고리가 없는 코드 문항은 언어를 카테고리로 옮긴다 (대시보드 오답 분석과 같은 규칙)', () => {
+    saveProgress('wrong_notes', [
+      codeNote('C-01', { lang: 'c' }),
+      codeNote('J-01', { lang: 'java' }),
+      codeNote('S-01', { lang: 'sql' }),
+      codeNote('Q-01', { lang: 'java', category: '데이터베이스' }),
+    ]);
+
+    expect(buildPlanSnapshot({}).wrongNotes.map((n) => n.category)).toEqual([
+      'C언어',
+      'Java',
+      'SQL',
+      '데이터베이스',
+    ]);
+  });
+
+  it('문항 라벨은 짧게 잘라 보낸다', () => {
+    saveProgress('wrong_notes', [codeNote('C-01', { title: '가'.repeat(500) })]);
+
+    expect(buildPlanSnapshot({}).wrongNotes[0].question.length).toBeLessThanOrEqual(120);
   });
 
   it('화면 source 를 서버가 아는 교재 source 로 옮긴다', () => {
@@ -212,7 +247,10 @@ describe('buildPlanSnapshot — 크기 상한', () => {
   });
 
   it('최악의 데이터에서도 직렬화 크기가 32KB 를 넘지 않는다', () => {
-    saveProgress('wrong_notes', Array.from({ length: 500 }, (_, i) => codeNote(`C-${i}`)));
+    saveProgress(
+      'wrong_notes',
+      Array.from({ length: 500 }, (_, i) => codeNote(`C-${i}`, { title: '가'.repeat(400) }))
+    );
     const results = {};
     for (let i = 0; i < 1000; i++) results[`Q-${i}`] = 'incorrect';
     saveProgress('quiz_results', results);
