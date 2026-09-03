@@ -35,6 +35,9 @@ const flush = () => act(async () => { await Promise.resolve(); await Promise.res
 
 beforeEach(() => {
   localStorage.clear();
+  // StudyPage 는 문서를 바꿀 때 맨 위로 스크롤한다. jsdom 에 구현이 없어
+  // 경고를 뱉으므로 막아 둔다 — 테스트 출력은 깨끗해야 한다.
+  vi.stubGlobal('scrollTo', vi.fn());
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve(new Response('# 빈 문서\n', { status: 200 })))
