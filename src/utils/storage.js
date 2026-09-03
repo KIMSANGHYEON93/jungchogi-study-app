@@ -122,7 +122,7 @@ const STUDY_TIME_KEY = 'study_time';
 // 날짜 키는 로컬 기준 YYYY-MM-DD.
 // toISOString() 은 UTC 라 요일 라벨(getDay(), 로컬)과 어긋난다 —
 // 한국(UTC+9)에서는 00:00~08:59 학습이 전날 칸에 쌓이는 결함이 있었다.
-function toLocalDateKey(date) {
+export function toLocalDateKey(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
@@ -191,4 +191,63 @@ export function getSpacedRepetitionDue() {
     const nextInterval = intervals[Math.min(n.reviewCount, intervals.length - 1)] || 7;
     return daysSince >= nextInterval;
   });
+}
+
+// ─── 학습 플랜 (StudyPlan 애그리게이트) ───
+
+// 날짜별로 키가 하나씩 늘어나므로 상한이 필요하다. 한 주치만 남긴다 —
+// 지난 계획은 참고용이고, 무제한으로 쌓이면 대시보드 "데이터 관리"의
+// 용량 표시를 계획 데이터가 잠식한다.
+export const MAX_STORED_PLANS = 7;
+
+const STUDY_PLAN_PREFIX = 'study_plan_';
+const STUDY_PLAN_KEY_PREFIX = PREFIX + STUDY_PLAN_PREFIX;
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 저장된 계획의 날짜를 최신순으로 돌려준다. */
+export function listStudyPlanDates() {
+  const dates = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key.startsWith(STUDY_PLAN_KEY_PREFIX)) continue;
+    const date = key.slice(STUDY_PLAN_KEY_PREFIX.length);
+    // 접두사만 맞고 날짜가 아닌 키(수동 편집·구버전 잔재)는 계획으로 세지 않는다
+    if (DATE_KEY_RE.test(date)) dates.push(date);
+  }
+  // 날짜 키가 YYYY-MM-DD 라 사전순 정렬이 곧 시간순 정렬이다
+  return dates.sort().reverse();
+}
+
+/**
+ * 최신 `keep` 개만 남기고 오래된 계획을 지운다.
+ * @returns {string[]} 지운 날짜
+ */
+export function pruneStudyPlans(keep = MAX_STORED_PLANS) {
+  const removed = listStudyPlanDates().slice(Math.max(keep, 0));
+  removed.forEach((date) => clearProgress(STUDY_PLAN_PREFIX + date));
+  return removed;
+}
+
+/**
+ * @param {string} dateKey 로컬 기준 YYYY-MM-DD
+ * @returns {import('../domain/studyPlan.js').StudyPlan|null}
+ */
+export function getStudyPlan(dateKey) {
+  return loadProgress(STUDY_PLAN_PREFIX + dateKey, null);
+}
+
+/**
+ * 계획을 저장한다. 같은 날짜면 덮어쓴다(재생성).
+ * 쓰기 전에 오래된 계획을 정리해 키가 무한정 늘어나지 않게 한다.
+ * @returns {boolean} 저장 성공 여부 (용량 초과 시 false)
+ */
+export function saveStudyPlan(plan) {
+  const date = plan?.date;
+  if (typeof date !== 'string' || date === '') return false;
+  // 덮어쓸 자기 날짜는 정리 대상에서 빼야 총 개수가 MAX_STORED_PLANS 로 맞는다
+  listStudyPlanDates()
+    .filter((d) => d !== date)
+    .slice(MAX_STORED_PLANS - 1)
+    .forEach((d) => clearProgress(STUDY_PLAN_PREFIX + d));
+  return saveProgress(STUDY_PLAN_PREFIX + date, plan);
 }

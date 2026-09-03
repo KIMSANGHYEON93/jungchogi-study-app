@@ -17,6 +17,12 @@ import {
   getStorageUsage,
   formatBytes,
   getSpacedRepetitionDue,
+  toLocalDateKey,
+  saveStudyPlan,
+  getStudyPlan,
+  listStudyPlanDates,
+  pruneStudyPlans,
+  MAX_STORED_PLANS,
 } from '../src/utils/storage.js';
 
 const PREFIX = 'jungchogi_';
@@ -355,5 +361,104 @@ describe('flashcard_known 키 마이그레이션 (모듈 로드 시 1회)', () =
   it('구 키가 없으면 아무것도 만들지 않는다', async () => {
     await reimport();
     expect(localStorage.getItem(NEW)).toBeNull();
+  });
+});
+
+// ─── 학습 플랜 (Phase 2) ───
+
+describe('toLocalDateKey', () => {
+  it('로컬 기준 YYYY-MM-DD 를 만든다 (UTC 가 아니다)', () => {
+    // Asia/Seoul(UTC+9) 기준 2026-09-03 01:00 = UTC 2026-09-02 16:00
+    const d = new Date(2026, 8, 3, 1, 0, 0);
+    expect(toLocalDateKey(d)).toBe('2026-09-03');
+    expect(d.toISOString().slice(0, 10)).toBe('2026-09-02');
+  });
+
+  it('인자가 없으면 오늘 날짜를 쓴다', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 3, 12, 0, 0));
+    expect(toLocalDateKey()).toBe('2026-09-03');
+  });
+});
+
+describe('saveStudyPlan / getStudyPlan', () => {
+  const plan = (date) => ({
+    date,
+    items: [{ type: 'review_wrong', source: 'quiz100', ids: ['042'], minutes: 20, why: '틀림' }],
+    rationale: '오답부터',
+    riskFlags: [],
+  });
+
+  it('`study_plan_<date>` 키로 저장하고 그대로 다시 읽는다', () => {
+    expect(saveStudyPlan(plan('2026-09-03'))).toBe(true);
+    expect(localStorage.getItem(`${PREFIX}study_plan_2026-09-03`)).not.toBeNull();
+    expect(getStudyPlan('2026-09-03')).toEqual(plan('2026-09-03'));
+  });
+
+  it('저장된 계획이 없는 날짜는 null 이다', () => {
+    expect(getStudyPlan('2026-09-03')).toBeNull();
+  });
+
+  it('같은 날짜로 다시 저장하면 덮어쓴다 (재생성)', () => {
+    saveStudyPlan(plan('2026-09-03'));
+    const regenerated = { ...plan('2026-09-03'), rationale: '다시 세운 계획' };
+    saveStudyPlan(regenerated);
+    expect(getStudyPlan('2026-09-03').rationale).toBe('다시 세운 계획');
+    expect(listStudyPlanDates()).toEqual(['2026-09-03']);
+  });
+
+  it('date 가 없는 계획은 저장하지 않는다', () => {
+    expect(saveStudyPlan({ items: [] })).toBe(false);
+    expect(saveStudyPlan(null)).toBe(false);
+    expect(listStudyPlanDates()).toEqual([]);
+  });
+
+  it('용량이 꽉 차면 false 를 돌려주고 예외를 던지지 않는다', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      const err = new Error('quota');
+      err.name = 'QuotaExceededError';
+      throw err;
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(saveStudyPlan(plan('2026-09-03'))).toBe(false);
+  });
+});
+
+describe('listStudyPlanDates / pruneStudyPlans', () => {
+  const save = (date) => saveStudyPlan({ date, items: [], rationale: '', riskFlags: [] });
+
+  it('저장된 날짜를 최신순으로 돌려준다', () => {
+    save('2026-09-01');
+    save('2026-09-03');
+    save('2026-09-02');
+    expect(listStudyPlanDates()).toEqual(['2026-09-03', '2026-09-02', '2026-09-01']);
+  });
+
+  it('플랜이 아닌 jungchogi_ 키는 세지 않는다', () => {
+    saveProgress('day_checks', { 1: true });
+    save('2026-09-03');
+    expect(listStudyPlanDates()).toEqual(['2026-09-03']);
+  });
+
+  it('저장할 때마다 오래된 계획을 MAX_STORED_PLANS 개까지만 남긴다', () => {
+    for (let d = 1; d <= 10; d++) save(`2026-09-${String(d).padStart(2, '0')}`);
+    const dates = listStudyPlanDates();
+    expect(dates).toHaveLength(MAX_STORED_PLANS);
+    expect(dates[0]).toBe('2026-09-10');
+    expect(dates.at(-1)).toBe(`2026-09-0${10 - MAX_STORED_PLANS + 1}`);
+  });
+
+  it('pruneStudyPlans 는 지운 날짜를 돌려준다', () => {
+    save('2026-09-01');
+    save('2026-09-02');
+    save('2026-09-03');
+    expect(pruneStudyPlans(1)).toEqual(['2026-09-02', '2026-09-01']);
+    expect(listStudyPlanDates()).toEqual(['2026-09-03']);
+  });
+
+  it('전체 초기화가 플랜 키도 함께 지우도록 jungchogi_ 접두사를 쓴다', () => {
+    save('2026-09-03');
+    const keys = Object.keys(localStorage).filter((k) => k.includes('study_plan'));
+    expect(keys.every((k) => k.startsWith(PREFIX))).toBe(true);
   });
 });
