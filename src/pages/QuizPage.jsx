@@ -9,11 +9,30 @@ import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
 import AiExplainPanel from '../components/AiExplainPanel';
-import { AI_SOURCE } from '../domain/aiSource';
+import AiGradePanel from '../components/AiGradePanel';
+import { toAiSource, toGradeKind } from '../domain/aiSource';
+import {
+  QUIZ_RESULT,
+  isConfidentGrade,
+  summarizeQuizResults,
+  verdictToQuizResult,
+  withQuizResult,
+} from '../domain/grading';
 import { useThemeContext } from '../hooks/useTheme';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
 const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', sql: 'SQL' };
+
+// 이 화면은 코드트레이싱 드릴만 낸다. 그래도 출처·종류는 화면에 적어 두지 않고
+// 문항 서술에서 유도한다 — 모의고사와 같은 규칙을 쓰기 위해서다.
+const QUIZ_ITEM = { source: 'quiz' };
+const QUIZ_AI_SOURCE = toAiSource(QUIZ_ITEM);
+const QUIZ_GRADE_KIND = toGradeKind(QUIZ_ITEM);
+
+const SELF_GRADE_STATE = {
+  [QUIZ_RESULT.CORRECT]: '정답으로 기록됨',
+  [QUIZ_RESULT.INCORRECT]: '오답으로 기록됨',
+};
 
 export default function QuizPage() {
   useStudyTimer();
@@ -45,9 +64,31 @@ export default function QuizPage() {
   const handleSubmit = () => {
     if (!userAnswer.trim()) return;
     setSubmitted(true);
-    const newResults = { ...results, [current.id]: 'answered' };
+    // 시도 자체는 바로 남긴다(진도 표시가 여기에 걸려 있다). 정오는 아직 모르므로
+    // 'answered' = "시도했으나 정오 미상". 이미 채점된 문항은 덮어쓰지 않는다 —
+    // 다시 풀었다고 지난 판정을 정오 미상으로 되돌리면 정보가 사라진다.
+    const recorded = results[current.id];
+    if (recorded === QUIZ_RESULT.CORRECT || recorded === QUIZ_RESULT.INCORRECT) return;
+    const newResults = { ...results, [current.id]: QUIZ_RESULT.ANSWERED };
     setResults(newResults);
     saveProgress('quiz_results', newResults);
+  };
+
+  /**
+   * 채점 결과를 남긴다. 자기 채점 버튼과 AI 채점 확정분이 같은 길로 들어온다.
+   * @param {'correct'|'incorrect'} verdict
+   */
+  const recordGrade = (verdict) => {
+    const newResults = withQuizResult(results, current.id, verdict);
+    setResults(newResults);
+    saveProgress('quiz_results', newResults);
+  };
+
+  // §4.2: 확신이 낮은 판정은 확정으로 쓰지 않고 자기 채점 버튼에 맡긴다.
+  const handleAiGrade = (result) => {
+    if (!isConfidentGrade(result)) return;
+    const verdict = verdictToQuizResult(result.verdict);
+    if (verdict) recordGrade(verdict);
   };
 
   const goTo = (newIdx) => {
@@ -62,8 +103,11 @@ export default function QuizPage() {
     goTo(0);
   };
 
-  const correctCount = Object.keys(results).length;
+  // 레거시 'answered' 를 정답으로도 오답으로도 세지 않는 셈은 도메인이 한다
+  const summary = summarizeQuizResults(results);
+  const solvedCount = summary.attempted;
   const totalCount = allProblems.length;
+  const currentVerdict = current ? results[current.id] : undefined;
 
   return (
     <div className="page">
@@ -76,17 +120,17 @@ export default function QuizPage() {
           <div className="label">전체</div>
         </div>
         <div className="stat-box">
-          <div className="value" style={{ color: 'var(--success)' }}>{correctCount}</div>
+          <div className="value" style={{ color: 'var(--success)' }}>{solvedCount}</div>
           <div className="label">풀이 완료</div>
         </div>
         <div className="stat-box">
-          <div className="value" style={{ color: 'var(--warning)' }}>{totalCount - correctCount}</div>
+          <div className="value" style={{ color: 'var(--warning)' }}>{totalCount - solvedCount}</div>
           <div className="label">남은 문제</div>
         </div>
       </div>
 
       <div className="progress-bar">
-        <div className="fill" style={{ width: `${totalCount ? (correctCount / totalCount) * 100 : 0}%` }} />
+        <div className="fill" style={{ width: `${totalCount ? (solvedCount / totalCount) * 100 : 0}%` }} />
       </div>
 
       <div className="filter-bar">
@@ -176,13 +220,54 @@ export default function QuizPage() {
               </div>
             )}
 
+            {/* AI 채점은 정답을 이미 공개한 뒤에만 띄운다 — feedback·missedPoints 가
+                정답을 설명하는 문장이라 그 전에 보이면 답을 흘리게 된다. */}
+            {submitted && (
+              <AiGradePanel
+                key={`grade-${current.id}`}
+                source={QUIZ_AI_SOURCE}
+                kind={QUIZ_GRADE_KIND}
+                id={current.id}
+                userAnswer={userAnswer}
+                onResult={handleAiGrade}
+              />
+            )}
+
+            {/* 자기 채점 — AI 가 없어도, 확신이 낮아도, 틀렸어도 여기서 끝낼 수 있다 */}
+            {submitted && (
+              <div className="self-grade">
+                <span className="self-grade-label" id={`self-grade-label-${current.id}`}>
+                  직접 채점
+                </span>
+                <button
+                  type="button"
+                  className={`btn-outline self-grade-button ${currentVerdict === QUIZ_RESULT.CORRECT ? 'active' : ''}`}
+                  aria-pressed={currentVerdict === QUIZ_RESULT.CORRECT}
+                  onClick={() => recordGrade(QUIZ_RESULT.CORRECT)}
+                >
+                  맞았어요
+                </button>
+                <button
+                  type="button"
+                  className={`btn-outline self-grade-button ${currentVerdict === QUIZ_RESULT.INCORRECT ? 'active' : ''}`}
+                  aria-pressed={currentVerdict === QUIZ_RESULT.INCORRECT}
+                  onClick={() => recordGrade(QUIZ_RESULT.INCORRECT)}
+                >
+                  틀렸어요
+                </button>
+                <span className="self-grade-state" role="status">
+                  {SELF_GRADE_STATE[currentVerdict] ?? '아직 채점하지 않음'}
+                </span>
+              </div>
+            )}
+
             {/* 기존 풀이 블록(aria-live)의 바깥에 둔다 — 라이브 영역이 겹치면
                 스크린리더가 델타마다 끼어든다. 문항이 바뀌면 key 로 새로 마운트되고,
                 진행 중이던 스트리밍은 언마운트에서 취소된다. */}
             {submitted && (
               <AiExplainPanel
                 key={current.id}
-                source={AI_SOURCE.CODEDRILL}
+                source={QUIZ_AI_SOURCE}
                 id={current.id}
                 userAnswer={userAnswer}
               />

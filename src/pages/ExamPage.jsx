@@ -8,7 +8,13 @@ import useStudyTimer from '../hooks/useStudyTimer';
 import { fetchMarkdown } from '../utils/mdCache';
 import Icon from '../components/Icon';
 import ProblemContext from '../components/ProblemContext';
+import AiGradePanel from '../components/AiGradePanel';
+import { toAiSource, toGradeKind } from '../domain/aiSource';
 import { useThemeContext } from '../hooks/useTheme';
+
+// 모의고사는 단답형(quiz100)과 코드 트레이싱(codedrill)을 섞어 낸다.
+// 어느 교재에서 온 문항인지·어떻게 채점할 문항인지는 화면이 아니라 문항이 정한다.
+const examItem = (q) => ({ source: 'exam', type: q?.type });
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -233,6 +239,18 @@ export default function ExamPage() {
               {q.answer}
             </div>
           </details>
+          {/* AI 채점은 제출 후(이 결과 화면)에만 있다 — 시험 중에 띄우면
+              feedback·missedPoints 가 아직 안 푼 문제의 답을 흘린다.
+              저장은 하지 않는다: quiz_results 는 코드 퀴즈 40문항의 진도를
+              세는 칸이라, 모의고사가 낸 단답형 id 까지 섞이면 진도가 어긋난다. */}
+          <AiGradePanel
+            key={`grade-${i}`}
+            source={toAiSource(examItem(q))}
+            kind={toGradeKind(examItem(q))}
+            id={q.id}
+            userAnswer={answers[i]?.trim() || ''}
+          />
+
           <div style={{ marginTop: 8 }}>
             {wrongIds.has(q.id) ? (
               <button
