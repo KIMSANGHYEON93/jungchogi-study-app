@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "source": "codedrill",
+  "generatedAt": "2026-09-03T12:00:00.000Z",
+  "model": "claude-opus-5",
+  "reviewed": false,
+  "items": [
+    {
+      "id": "C-01-v1",
+      "title": "포인터로 두 변수 바꿔 더하기",
+      "context": "",
+      "code": "#include <stdio.h>\nint main() {\n    int x = 5, y = 7;\n    int *p = &x;\n    *p = *p * 2;\n    p = &y;\n    *p = *p + x;\n    printf(\"%d %d\", x, y);\n    return 0;\n}",
+      "lang": "c",
+      "answer": "추적표:\nx=5, y=7, p=&x\n*p = *p * 2 → x = 10\np = &y → p 가 y 를 가리킴\n*p = *p + x → y = 7 + 10 = 17\n\n출력: 10 17",
+      "expectedOutput": "10 17",
+      "pitfall": "두 번째 연산의 x 는 이미 10 으로 바뀐 값이다",
+      "variantOf": "C-01",
+      "generated": true
+    },
+    {
+      "id": "S-01-v1",
+      "title": "GROUP BY + HAVING 평균 조건",
+      "context": "사원\n| 사번 | 부서 | 급여 |\n|---|---|---|\n| 1 | 개발 | 300 |\n| 2 | 개발 | 500 |\n| 3 | 영업 | 200 |\n| 4 | 영업 | 260 |",
+      "code": "SELECT 부서, AVG(급여) AS 평균급여\nFROM 사원\nGROUP BY 부서\nHAVING AVG(급여) >= 300;",
+      "lang": "sql",
+      "answer": "부서별 평균: 개발 = (300+500)/2 = 400, 영업 = (200+260)/2 = 230.\nHAVING 조건 AVG(급여) >= 300 을 만족하는 것은 개발뿐이다.\n\n출력:\n개발 400",
+      "expectedOutput": "개발 400",
+      "pitfall": "HAVING 은 그룹 집계 후에 걸리므로 WHERE 로는 같은 조건을 쓸 수 없다",
+      "variantOf": "S-01",
+      "generated": true
+    }
+  ]
+}

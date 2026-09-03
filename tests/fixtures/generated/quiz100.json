@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "source": "quiz100",
+  "generatedAt": "2026-09-03T12:00:00.000Z",
+  "model": "claude-opus-5",
+  "reviewed": false,
+  "items": [
+    {
+      "id": "001-v1",
+      "question": "다음 설명에 해당하는 트랜잭션의 특성을 쓰시오: \"동시에 실행되는 다른 트랜잭션의 중간 연산 결과를 참조할 수 없다.\"",
+      "answer": "Isolation (독립성/고립성)",
+      "category": "데이터베이스",
+      "variantOf": "001",
+      "generated": true
+    },
+    {
+      "id": "001-v2",
+      "question": "장애가 발생해도 이미 완료(commit)된 트랜잭션의 결과가 보존되어야 한다는 성질의 이름을 영문과 한글로 쓰시오.",
+      "answer": "Durability (지속성/영속성)",
+      "category": "데이터베이스",
+      "variantOf": "001",
+      "generated": true
+    },
+    {
+      "id": "002-v1",
+      "question": "릴레이션 R(학번, 과목코드, 성적, 과목명)에서 (학번, 과목코드)가 기본키이고 과목코드 → 과목명이 성립할 때, 제거해야 하는 종속의 이름과 그 결과 도달하는 정규형을 쓰시오.",
+      "answer": "부분 함수 종속을 제거하여 2NF 에 도달한다.",
+      "category": "데이터베이스",
+      "variantOf": "002",
+      "generated": true
+    }
+  ]
+}
