@@ -72,11 +72,22 @@ const sentBody = () => JSON.parse(fetchMock.mock.calls[0][1].body);
 
 describe('상한값은 서버와 한 곳에서 관리된다', () => {
   // 브라우저 번들은 `lib/ai/guard.js` 를 import 할 수 없다(node:crypto 를 쓰는 서버
-  // 파일이다). 그래서 값 자체는 클라이언트에 한 번 더 적을 수밖에 없는데, 두 값이
-  // 조용히 갈리면 클램프가 무력해진다(작으면 답을 더 깎고, 크면 400 이 그대로 난다).
-  // 이 테스트가 그 갈림을 깨뜨린다 — 서버 상한을 바꾸면 여기서 먼저 빨개진다.
+  // 파일이다). 그래서 상한은 의존성 없는 `lib/ai/limits.js` 하나에 두고 양쪽이 그것을
+  // import 한다 — 값이 갈릴 수가 없다.
   it('클라이언트 상한이 서버 lib/ai/guard.js 의 상한과 같다', () => {
     expect(MAX_USER_ANSWER_LENGTH).toBe(SERVER_MAX_USER_ANSWER_LENGTH);
+  });
+
+  // 위 보장은 `lib/ai/limits.js` 가 **의존성이 없다**는 전제 위에 서 있다.
+  // 거기에 `node:` 모듈이나 다른 파일을 import 하는 순간 브라우저 번들이 깨진다.
+  // 빌드가 깨지고 나서 알기보다 여기서 먼저 알아채는 편이 낫다.
+  it('lib/ai/limits.js 는 아무것도 import 하지 않는다 — 브라우저가 쓸 수 있는 조건', async () => {
+    // jsdom 환경에서는 `import.meta.url` 이 file: URL 이 아니다. vitest 는 프로젝트
+    // 루트에서 돌므로 cwd 기준 상대 경로로 읽는다.
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile('lib/ai/limits.js', 'utf8');
+    expect(source).not.toMatch(/^\s*import\s/m);
+    expect(source).not.toMatch(/\brequire\s*\(/);
   });
 });
 

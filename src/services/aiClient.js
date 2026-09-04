@@ -12,13 +12,14 @@ export { AiRequestError };
 /**
  * 답안 길이 상한 (UTF-16 코드 단위).
  *
- * ⚠️ 서버 `lib/ai/guard.js` 의 `MAX_USER_ANSWER_LENGTH` 와 **같은 값이어야 한다.**
+ * 서버(`lib/ai/guard.js`)와 **같은 모듈**(`lib/ai/limits.js`)에서 온다 — 값이 갈릴 수 없다.
  * 그 파일은 `node:crypto` 를 쓰는 서버 모듈이라 브라우저 번들에서 import 할 수 없어
  * 값을 한 번 더 적는 수밖에 없다. 두 값이 조용히 갈리면 클램프가 무력해지므로
  * (상한이 작으면 답을 괜히 더 깎고, 크면 400 이 그대로 난다) 서버 상수를 직접
  * 읽어 비교하는 회귀 테스트를 뒀다 — `tests/aiClientClamp.test.js`.
  */
-export const MAX_USER_ANSWER_LENGTH = 2_000;
+export { MAX_USER_ANSWER_LENGTH } from '../../lib/ai/limits.js';
+import { MAX_USER_ANSWER_LENGTH } from '../../lib/ai/limits.js';
 
 /**
  * @typedef {Object} ClampedAnswer
