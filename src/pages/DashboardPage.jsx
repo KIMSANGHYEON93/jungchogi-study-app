@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { loadProgress, saveProgress, getWrongNotes, getExamDate, setExamDate, getWeeklyStudyTime, addStudyTime, getSpacedRepetitionDue, getStorageUsage, formatBytes } from '../utils/storage';
 import Icon from '../components/Icon';
 import TodayPlanCard from '../components/TodayPlanCard';
+import UsageSummaryCard from '../components/UsageSummaryCard';
 import { summarizeQuizResults } from '../domain/grading';
 
 const STUDY_DAYS = [
@@ -378,6 +379,9 @@ export default function DashboardPage() {
       <div style={{ textAlign: 'center', marginTop: 16, color: 'var(--text-dim)', fontSize: '0.85rem' }}>
         {daysCompleted}/14일 완료 — 클릭하여 완료 표시
       </div>
+
+      {/* AI 사용량 — 본인 API 키로 도는 앱이라 비용이 곧 사용자 지갑이다 */}
+      <UsageSummaryCard />
 
       {/* 데이터 관리 */}
       <div className="card" style={{ marginTop: 32 }}>
