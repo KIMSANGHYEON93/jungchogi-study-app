@@ -192,6 +192,76 @@ describe('제어문자·공백·숫자처럼 생긴 값', () => {
     ).toBe(false);
   });
 
+  // ── userAnswer 의 제어문자 (Phase 5 잔여) ──
+  //
+  // 답안은 프롬프트에 그대로 실린다. NUL·ESC 가 섞이면 터미널 이스케이프가 로그를
+  // 물들이고 프롬프트에 보이지 않는 바이트가 들어간다. 그렇다고 전부 지우면 안 된다 —
+  // **코드 트레이싱 채점은 탭·개행이 비교 대상**이라 답안 원문을 바꾸면 채점이 달라진다.
+  // 그래서 경계는 `\t`·`\n`·`\r` 보존, 나머지 C0/C1 제거다 (스냅샷 문자열과 같은 규칙).
+
+  it('해설 요청의 답안에서 제어문자를 지우고 탭·개행·복귀는 남긴다', () => {
+    const result = validateTutorBody({
+      source: 'quiz100',
+      id: '001',
+      userAnswer: '앞\u0000\u001B[31m가운데\u007F\n뒤\t끝\r\n',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.value.userAnswer).toBe('앞[31m가운데\n뒤\t끝\r\n');
+  });
+
+  it('채점 요청의 답안에서도 같은 규칙을 쓴다', () => {
+    const result = validateGradeBody({
+      kind: 'code',
+      source: 'codedrill',
+      id: 'C-01',
+      userAnswer: '10 20\u0000\n\u001B30 40',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.value.userAnswer).toBe('10 20\n30 40');
+  });
+
+  it('코드 트레이싱 답안의 들여쓰기와 줄바꿈은 한 글자도 바뀌지 않는다', () => {
+    // 이 답안이 바뀌면 채점 결과가 바뀐다. 회귀를 여기서 고정한다.
+    const traced = '\t10\r\n\t20\n\n  30\t40\n';
+    const result = validateGradeBody({
+      kind: 'code',
+      source: 'codedrill',
+      id: 'C-01',
+      userAnswer: traced,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.value.userAnswer).toBe(traced);
+  });
+
+  it('제어문자만 있는 답안은 채점에서 빈 답안으로 막힌다', () => {
+    expect(
+      validateGradeBody({
+        kind: 'short',
+        source: 'quiz100',
+        id: '001',
+        userAnswer: '\u0000\u001B\u007F',
+      }).ok
+    ).toBe(false);
+  });
+
+  it('제어문자를 지운 뒤의 길이로 상한을 잰다', () => {
+    // 지워질 바이트를 채워 넣어 상한을 넘긴 것처럼 보이게 하는 요청을 막지 않는다 —
+    // 업스트림에 실리는 것은 정리된 문자열이고, 상한은 그 문자열에 대한 약속이다
+    const answer = 'a'.repeat(MAX_USER_ANSWER_LENGTH) + '\u0000'.repeat(50);
+    const result = validateGradeBody({
+      kind: 'short',
+      source: 'quiz100',
+      id: '001',
+      userAnswer: answer,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.value.userAnswer).toHaveLength(MAX_USER_ANSWER_LENGTH);
+  });
+
   it('숫자처럼 생긴 문자열 id 는 형식이 맞으면 통과하고 숫자면 막힌다', () => {
     expect(validateTutorBody({ source: 'quiz100', id: '001', userAnswer: 'a' }).ok).toBe(true);
     expect(validateTutorBody({ source: 'quiz100', id: 1, userAnswer: 'a' }).ok).toBe(false);
