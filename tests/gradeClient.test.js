@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// aiClient 가 사용 원장(utils/usageLedger → utils/storage)을 쓰므로 localStorage 가 필요하다.
 // `/api/ai/grade` 호출 계약 (BLUEPRINT §4.2).
 //
 // 채점은 스트리밍이 아니라 JSON 한 번이다. 그래도 헤더 처리와 오류 정규화는

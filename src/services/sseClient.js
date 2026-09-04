@@ -105,6 +105,8 @@ export async function postSseStream(endpoint, body, options = {}) {
       if (payload.error) {
         streamError = new AiRequestError(payload.error.code, payload.error.message, {
           partialText: partial(),
+          // 실패해도 이미 쓴 토큰은 있다 — cost 가 실려 오면 원장까지 들고 간다
+          cost: payload.cost,
         });
         finished = true;
         return;

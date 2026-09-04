@@ -34,7 +34,7 @@ export class AiRequestError extends Error {
   /**
    * @param {string} code
    * @param {string} [message]
-   * @param {{status?: number, partialText?: string}} [meta]
+   * @param {{status?: number, partialText?: string, cost?: unknown}} [meta]
    */
   constructor(code, message, meta = {}) {
     const normalized = KNOWN_CODES.includes(code) ? code : 'UPSTREAM';
@@ -43,6 +43,9 @@ export class AiRequestError extends Error {
     this.code = normalized;
     this.status = meta.status ?? null;
     this.partialText = meta.partialText ?? '';
+    // 실패한 호출도 토큰을 쓴다. 서버가 오류에 cost 를 실어 보내면 그대로 들고
+    // 올라가 호출부가 사용 원장에 남길 수 있게 한다 (§5 Phase 5).
+    this.cost = meta.cost ?? null;
   }
 }
 
@@ -80,7 +83,7 @@ export async function toResponseError(response) {
   }
   const error = payload?.error;
   const code = error?.code || STATUS_TO_CODE[response.status] || 'UPSTREAM';
-  return new AiRequestError(code, error?.message, { status: response.status });
+  return new AiRequestError(code, error?.message, { status: response.status, cost: payload?.cost });
 }
 
 /**

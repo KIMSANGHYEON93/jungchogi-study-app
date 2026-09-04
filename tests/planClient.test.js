@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// aiClient 가 사용 원장(utils/usageLedger → utils/storage)을 쓰므로 localStorage 가 필요하다.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { streamPlan, PLAN_ENDPOINT, AiRequestError } from '../src/services/aiClient.js';
 

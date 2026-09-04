@@ -5,8 +5,29 @@
 
 import { postSseStream } from './sseClient';
 import { postAiJson, AiRequestError } from './aiTransport';
+import { recordUsage } from '../utils/usageLedger';
 
 export { AiRequestError };
+
+/**
+ * 서버가 실어 보낸 `cost` 를 사용 원장에 남긴다 (BLUEPRINT §5 Phase 5).
+ *
+ * **기록은 학습 흐름보다 뒤다.** 원장 쓰기가 어떤 이유로든 던져도 해설·계획·채점은
+ * 그대로 진행돼야 한다. `recordUsage` 자체가 던지지 않도록 만들어져 있지만,
+ * 그 계약이 깨지더라도 여기서 한 번 더 막는다.
+ *
+ * `cost` 가 없으면(서버가 아직 이 필드를 안 보내는 상태) 아무것도 남기지 않는다.
+ *
+ * @param {unknown} cost
+ * @param {'tutor'|'plan'|'grade'} endpoint 서버가 endpoint 를 안 보낼 때 쓰는 값
+ */
+function logUsage(cost, endpoint) {
+  try {
+    recordUsage(cost, { endpoint });
+  } catch {
+    // 관측 데이터를 못 남긴 것뿐이다. 학습은 계속된다.
+  }
+}
 
 /**
  * 서버 API 가 받는 문항 출처. 화면/오답노트의 source 와는 이름이 다르므로
@@ -69,24 +90,32 @@ export async function streamTutor(request, options = {}) {
   const { onDelta, signal } = options;
   let text = '';
 
-  const { done, aborted } = await postSseStream(
-    TUTOR_ENDPOINT,
-    {
-      source: request.source,
-      id: request.id,
-      userAnswer: request.userAnswer ?? '',
-      history: request.history ?? [],
-    },
-    {
-      signal,
-      getPartialText: () => text,
-      onPayload: (payload) => {
-        if (typeof payload.delta !== 'string' || payload.delta === '') return;
-        text += payload.delta;
-        onDelta?.(payload.delta);
+  let done, aborted;
+  try {
+    ({ done, aborted } = await postSseStream(
+      TUTOR_ENDPOINT,
+      {
+        source: request.source,
+        id: request.id,
+        userAnswer: request.userAnswer ?? '',
+        history: request.history ?? [],
       },
-    }
-  );
+      {
+        signal,
+        getPartialText: () => text,
+        onPayload: (payload) => {
+          if (typeof payload.delta !== 'string' || payload.delta === '') return;
+          text += payload.delta;
+          onDelta?.(payload.delta);
+        },
+      }
+    ));
+  } catch (err) {
+    logUsage(err?.cost, 'tutor');
+    throw err;
+  }
+
+  logUsage(done?.cost, 'tutor');
 
   if (aborted) return { text, usage: null, aborted: true };
   return { text, usage: done?.usage ?? null, aborted: false };
@@ -109,18 +138,26 @@ export async function streamPlan(snapshot, options = {}) {
   /** @type {import('../domain/studyPlan.js').PlanToolEvent[]} */
   const events = [];
 
-  const { done, aborted } = await postSseStream(
-    PLAN_ENDPOINT,
-    { snapshot },
-    {
-      signal,
-      onPayload: (payload) => {
-        if (payload.phase !== 'tool' && payload.phase !== 'tool_result') return;
-        events.push(payload);
-        onToolEvent?.(payload);
-      },
-    }
-  );
+  let done, aborted;
+  try {
+    ({ done, aborted } = await postSseStream(
+      PLAN_ENDPOINT,
+      { snapshot },
+      {
+        signal,
+        onPayload: (payload) => {
+          if (payload.phase !== 'tool' && payload.phase !== 'tool_result') return;
+          events.push(payload);
+          onToolEvent?.(payload);
+        },
+      }
+    ));
+  } catch (err) {
+    logUsage(err?.cost, 'plan');
+    throw err;
+  }
+
+  logUsage(done?.cost, 'plan');
 
   if (aborted) return { plan: null, usage: null, events, aborted: true };
 
@@ -147,17 +184,25 @@ export async function streamPlan(snapshot, options = {}) {
  * @returns {Promise<GradeResponse>}
  */
 export async function gradeAnswer(request, options = {}) {
-  const { data, aborted } = await postAiJson(
-    GRADE_ENDPOINT,
-    {
-      kind: request.kind,
-      source: request.source,
-      id: request.id,
-      // undefined 를 보내면 JSON 에서 키가 통째로 사라져 서버가 400 을 낸다
-      userAnswer: request.userAnswer ?? '',
-    },
-    { signal: options.signal }
-  );
+  let data, aborted;
+  try {
+    ({ data, aborted } = await postAiJson(
+      GRADE_ENDPOINT,
+      {
+        kind: request.kind,
+        source: request.source,
+        id: request.id,
+        // undefined 를 보내면 JSON 에서 키가 통째로 사라져 서버가 400 을 낸다
+        userAnswer: request.userAnswer ?? '',
+      },
+      { signal: options.signal }
+    ));
+  } catch (err) {
+    logUsage(err?.cost, 'grade');
+    throw err;
+  }
+
+  logUsage(data?.cost, 'grade');
 
   if (aborted) return { result: null, aborted: true };
 
