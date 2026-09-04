@@ -10,6 +10,50 @@ import { recordUsage } from '../utils/usageLedger';
 export { AiRequestError };
 
 /**
+ * 답안 길이 상한 (UTF-16 코드 단위).
+ *
+ * ⚠️ 서버 `lib/ai/guard.js` 의 `MAX_USER_ANSWER_LENGTH` 와 **같은 값이어야 한다.**
+ * 그 파일은 `node:crypto` 를 쓰는 서버 모듈이라 브라우저 번들에서 import 할 수 없어
+ * 값을 한 번 더 적는 수밖에 없다. 두 값이 조용히 갈리면 클램프가 무력해지므로
+ * (상한이 작으면 답을 괜히 더 깎고, 크면 400 이 그대로 난다) 서버 상수를 직접
+ * 읽어 비교하는 회귀 테스트를 뒀다 — `tests/aiClientClamp.test.js`.
+ */
+export const MAX_USER_ANSWER_LENGTH = 2_000;
+
+/**
+ * @typedef {Object} ClampedAnswer
+ * @property {string} value 실제로 보낼 답
+ * @property {boolean} truncated 뒷부분이 잘렸는지
+ * @property {number} originalLength 사용자가 쓴 원래 길이
+ */
+
+/**
+ * 답안을 서버 상한에 맞춰 자른다.
+ *
+ * 자르지 않고 그대로 보내면 서버가 400 BAD_REQUEST 로 끊어, 사용자는 "요청 내용이
+ * 올바르지 않습니다"만 보고 왜 안 되는지 모른다. 그래서 여기서 자르되 **잘랐다는
+ * 사실을 함께 돌려준다** — 뒷부분이 채점에서 빠진 줄 모르면 결과를 오해하기 때문이다.
+ * 화면에 어떻게 알릴지는 이 신호를 받는 호출부의 몫이다.
+ *
+ * 자르는 자리가 서로게이트 페어 한가운데면 짝 잃은 상위 서로게이트가 남는다.
+ * 그대로 JSON 으로 나가면 이스케이프된 반쪽(\ud83d 같은 값)이 프롬프트에 실리므로 한 글자를
+ * 더 떼어낸다 — 서버 `sanitizeText` 가 같은 자리에서 같은 판단을 한다.
+ *
+ * @param {unknown} answer
+ * @returns {ClampedAnswer}
+ */
+export function clampUserAnswer(answer) {
+  const text = typeof answer === 'string' ? answer : '';
+  if (text.length <= MAX_USER_ANSWER_LENGTH) {
+    return { value: text, truncated: false, originalLength: text.length };
+  }
+  const cut = text.slice(0, MAX_USER_ANSWER_LENGTH);
+  const last = cut.charCodeAt(cut.length - 1);
+  const value = last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+  return { value, truncated: true, originalLength: text.length };
+}
+
+/**
  * 서버가 실어 보낸 `cost` 를 사용 원장에 남긴다 (BLUEPRINT §5 Phase 5).
  *
  * **기록은 학습 흐름보다 뒤다.** 원장 쓰기가 어떤 이유로든 던져도 해설·계획·채점은
@@ -48,6 +92,9 @@ function logUsage(cost, endpoint) {
  * @property {string} text 누적된 해설 전문
  * @property {object|null} usage 서버가 마지막 프레임에 실어 보낸 토큰 사용량
  * @property {boolean} aborted 사용자가 취소해 중간에 끝났는지
+ * @property {boolean} truncated 답이 서버 상한을 넘어 잘린 채로 갔는지
+ * @property {number} originalLength 사용자가 쓴 원래 답 길이
+ * @property {number} sentLength 실제로 보낸 답 길이
  */
 
 /**
@@ -70,6 +117,10 @@ function logUsage(cost, endpoint) {
  * @typedef {Object} GradeResponse
  * @property {object|null} result 서버가 돌려준 채점 결과 원본 (취소 시 null)
  * @property {boolean} aborted 사용자가 취소해 중간에 끝났는지
+ * @property {boolean} truncated 답이 서버 상한을 넘어 잘린 채로 채점됐는지 —
+ *   true 면 채점은 뒷부분을 **보지 못했다**. 화면이 반드시 알려야 하는 사실이다.
+ * @property {number} originalLength 사용자가 쓴 원래 답 길이
+ * @property {number} sentLength 실제로 채점에 들어간 답 길이
  */
 
 export const TUTOR_ENDPOINT = '/api/ai/tutor';
@@ -88,6 +139,12 @@ export const GRADE_ENDPOINT = '/api/ai/grade';
  */
 export async function streamTutor(request, options = {}) {
   const { onDelta, signal } = options;
+  const answer = clampUserAnswer(request.userAnswer);
+  const clamp = {
+    truncated: answer.truncated,
+    originalLength: answer.originalLength,
+    sentLength: answer.value.length,
+  };
   let text = '';
 
   let done, aborted;
@@ -97,7 +154,7 @@ export async function streamTutor(request, options = {}) {
       {
         source: request.source,
         id: request.id,
-        userAnswer: request.userAnswer ?? '',
+        userAnswer: answer.value,
         history: request.history ?? [],
       },
       {
@@ -117,8 +174,11 @@ export async function streamTutor(request, options = {}) {
 
   logUsage(done?.cost, 'tutor');
 
-  if (aborted) return { text, usage: null, aborted: true };
-  return { text, usage: done?.usage ?? null, aborted: false };
+  // 취소해도 받아 둔 부분 해설은 화면에 남고, 그 해설은 잘린 답을 보고 쓴 것이다.
+  // 그래서 취소 경로에도 클램프 신호를 싣는다. 채점(gradeAnswer)은 취소하면
+  // 보여줄 결과 자체가 없어(result: null) 신호를 붙이지 않는다 — 갈리는 지점이다.
+  if (aborted) return { text, usage: null, aborted: true, ...clamp };
+  return { text, usage: done?.usage ?? null, aborted: false, ...clamp };
 }
 
 /**
@@ -184,6 +244,13 @@ export async function streamPlan(snapshot, options = {}) {
  * @returns {Promise<GradeResponse>}
  */
 export async function gradeAnswer(request, options = {}) {
+  const answer = clampUserAnswer(request.userAnswer);
+  const clamp = {
+    truncated: answer.truncated,
+    originalLength: answer.originalLength,
+    sentLength: answer.value.length,
+  };
+
   let data, aborted;
   try {
     ({ data, aborted } = await postAiJson(
@@ -192,8 +259,9 @@ export async function gradeAnswer(request, options = {}) {
         kind: request.kind,
         source: request.source,
         id: request.id,
-        // undefined 를 보내면 JSON 에서 키가 통째로 사라져 서버가 400 을 낸다
-        userAnswer: request.userAnswer ?? '',
+        // clampUserAnswer 가 문자열이 아닌 값을 빈 문자열로 떨어뜨린다.
+        // undefined 를 보내면 JSON 에서 키가 통째로 사라져 서버가 400 을 낸다.
+        userAnswer: answer.value,
       },
       { signal: options.signal }
     ));
@@ -204,11 +272,13 @@ export async function gradeAnswer(request, options = {}) {
 
   logUsage(data?.cost, 'grade');
 
+  // 취소면 보여줄 채점 결과가 없다. 클램프 신호는 "보여줄 결과"에 붙는 것이므로
+  // 여기서는 붙이지 않는다 (해설과 갈리는 이유는 streamTutor 쪽 주석 참고).
   if (aborted) return { result: null, aborted: true };
 
   // 채점 결과로 볼 수 없는 응답은 재시도가 답이므로 UPSTREAM 으로 접는다.
   if (!data || typeof data !== 'object' || typeof data.verdict !== 'string') {
     throw new AiRequestError('UPSTREAM', '채점 결과를 받지 못했습니다. 다시 시도해 주세요.');
   }
-  return { result: data, aborted: false };
+  return { result: data, aborted: false, ...clamp };
 }
