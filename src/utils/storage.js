@@ -54,8 +54,16 @@ export function clearProgress(key) {
 (function migrateFlashcardKey() {
   const oldKey = 'jungchogi_flashcard_known';
   const newKey = 'jungchogi_flashcard_known_quiz100';
-  if (localStorage.getItem(oldKey) && !localStorage.getItem(newKey)) {
-    localStorage.setItem(newKey, localStorage.getItem(oldKey));
+  // 이 코드는 **모듈 import 시점**에 돈다. 쿠키·사이트 데이터가 차단된 브라우저에서는
+  // localStorage 접근만으로 SecurityError 가 나는데, 여기서 던지면 번들이 로드되다
+  // 터져서 화면이 통째로 하얘진다. 마이그레이션 실패는 그만한 값이 아니다 —
+  // 저장이 안 되는 환경이면 어차피 옮길 진도도 없다.
+  try {
+    if (localStorage.getItem(oldKey) && !localStorage.getItem(newKey)) {
+      localStorage.setItem(newKey, localStorage.getItem(oldKey));
+    }
+  } catch (err) {
+    console.warn('[storage] flashcard_known 마이그레이션을 건너뜁니다.', err);
   }
 })();
 
@@ -63,14 +71,26 @@ export function clearProgress(key) {
 
 const WRONG_NOTES_KEY = 'wrong_notes';
 
+// 복습 횟수는 간격 반복 인덱스로 쓰이므로 숫자여야 한다.
+// 구버전 데이터에는 없고, 손으로 고친 내보내기 파일에는 문자열이 들어 있기도 하다.
+function toReviewCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+// `loadProgress` 는 저장값이 `null` 이면 fallback 이 아니라 null 을 그대로 돌려준다
+// (`JSON.parse('null')` 은 예외가 아니다). 구버전 형식이나 수기 편집으로 배열이 아닌
+// 값이 들어 있는 경우도 있다. 오답노트를 읽는 쪽이 전부 배열을 전제하므로
+// **여기 한 곳에서** 배열임을 보장한다 — 아니면 화면 다섯 곳이 각자 방어해야 한다.
 export function getWrongNotes() {
-  return loadProgress(WRONG_NOTES_KEY, []);
+  const notes = loadProgress(WRONG_NOTES_KEY, []);
+  return Array.isArray(notes) ? notes : [];
 }
 
 export function addWrongNote(note) {
   const notes = getWrongNotes();
   // 중복 방지: 같은 source + id 조합이면 업데이트
-  const existIdx = notes.findIndex((n) => n.source === note.source && n.id === note.id);
+  const existIdx = notes.findIndex((n) => n?.source === note.source && n?.id === note.id);
   const entry = {
     ...note,
     addedAt: Date.now(),
@@ -78,7 +98,7 @@ export function addWrongNote(note) {
     mastered: false,
   };
   if (existIdx >= 0) {
-    entry.reviewCount = notes[existIdx].reviewCount;
+    entry.reviewCount = toReviewCount(notes[existIdx].reviewCount);
     notes[existIdx] = entry;
   } else {
     notes.push(entry);
@@ -87,15 +107,15 @@ export function addWrongNote(note) {
 }
 
 export function removeWrongNote(source, id) {
-  const notes = getWrongNotes().filter((n) => !(n.source === source && n.id === id));
+  const notes = getWrongNotes().filter((n) => !(n?.source === source && n?.id === id));
   saveProgress(WRONG_NOTES_KEY, notes);
 }
 
 // 복습 완료 처리 — 타임스탬프는 addWrongNote 의 addedAt 과 마찬가지로 저장 계층이 소유한다
 export function markWrongNoteReviewed(source, id) {
   const notes = getWrongNotes().map((n) =>
-    n.source === source && n.id === id
-      ? { ...n, reviewCount: n.reviewCount + 1, lastReviewed: Date.now() }
+    n?.source === source && n?.id === id
+      ? { ...n, reviewCount: toReviewCount(n.reviewCount) + 1, lastReviewed: Date.now() }
       : n
   );
   saveProgress(WRONG_NOTES_KEY, notes);
@@ -129,14 +149,23 @@ export function toLocalDateKey(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+// 오답노트와 같은 이유로 여기서 형태를 보장한다 — 읽는 쪽(대시보드 주간 그래프,
+// 플래너 스냅샷)이 전부 `{날짜: 분}` 맵을 전제한다. 배열도 맵으로 보지 않는다.
 export function getStudyTimeLog() {
-  return loadProgress(STUDY_TIME_KEY, {});
+  const log = loadProgress(STUDY_TIME_KEY, {});
+  return log !== null && typeof log === 'object' && !Array.isArray(log) ? log : {};
 }
 
 export function addStudyTime(minutes) {
+  // 숫자가 아닌 값을 그대로 더하면 그날 합계가 NaN 이 되고,
+  // NaN 은 JSON 에서 null 로 굳어 **이미 쌓인 분이 사라진다.**
+  // 타이머 보정이 어긋나면 실제로 NaN 이 들어온다 — 그때는 아무것도 안 하는 쪽이 맞다.
+  const added = Number(minutes);
+  if (!Number.isFinite(added) || added <= 0) return;
+
   const log = getStudyTimeLog();
   const today = toLocalDateKey(new Date());
-  log[today] = (log[today] || 0) + minutes;
+  log[today] = (Number(log[today]) || 0) + added;
   saveProgress(STUDY_TIME_KEY, log);
 }
 
@@ -151,7 +180,7 @@ export function getWeeklyStudyTime() {
     result.push({
       date: key,
       day: dayNames[d.getDay()],
-      minutes: log[key] || 0,
+      minutes: Number(log[key]) || 0,
     });
   }
   return result;
@@ -184,6 +213,10 @@ export function getSpacedRepetitionDue() {
   const intervals = [1, 3, 7]; // 일 단위
 
   return notes.filter((n) => {
+    // 노트가 아닌 값이 섞여 있어도 복습 화면이 죽지 않게 한다.
+    // 서버판(`lib/ai/spacedRepetition.js` 의 selectDueReviews)과 같은 판정이다 —
+    // 두 구현의 동치성은 `tests/plan-spaced-repetition.test.js` 가 잡고 있다.
+    if (!n || typeof n !== 'object') return false;
     if (n.mastered) return false;
     const lastTime = n.lastReviewed || n.addedAt;
     if (!lastTime) return true;
