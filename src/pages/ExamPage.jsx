@@ -3,7 +3,13 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { parseQuiz } from '../utils/parseQuiz';
 import { parseCodeDrill } from '../utils/parseCodeDrill';
-import { addWrongNote, getWrongNotes, removeWrongNote } from '../utils/storage';
+import {
+  addWrongNote,
+  getWrongNotes,
+  removeWrongNote,
+  getExamResults,
+  saveExamResults,
+} from '../utils/storage';
 import useStudyTimer from '../hooks/useStudyTimer';
 import useVariantPreference from '../hooks/useVariantPreference';
 import { fetchMarkdown } from '../utils/mdCache';
@@ -15,6 +21,12 @@ import GeneratedBadge from '../components/GeneratedBadge';
 import VariantToggle from '../components/VariantToggle';
 import { toAiSource, toGradeKind } from '../domain/aiSource';
 import { isGeneratedItem } from '../domain/generatedItems';
+import {
+  QUIZ_RESULT,
+  isConfidentGrade,
+  verdictToQuizResult,
+  withQuizResult,
+} from '../domain/grading';
 import { useThemeContext } from '../hooks/useTheme';
 
 // 모의고사는 단답형(quiz100)과 코드 트레이싱(codedrill)을 섞어 낸다.
@@ -22,6 +34,12 @@ import { useThemeContext } from '../hooks/useTheme';
 // AI 변형 문항이면 `toAiSource` 가 null 을 주고 채점 패널이 통째로 사라진다 —
 // 서버 guard 의 ID_PATTERN 이 변형 id 를 거절해 400 이 나기 때문이다.
 const examItem = (q) => ({ source: 'exam', type: q?.type, generated: q?.generated, id: q?.id });
+
+/** 자기 채점 상태 문구 — 코드 퀴즈(QuizPage)와 같은 말을 쓴다 */
+const SELF_GRADE_STATE = {
+  [QUIZ_RESULT.CORRECT]: '정답으로 기록됨',
+  [QUIZ_RESULT.INCORRECT]: '오답으로 기록됨',
+};
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -50,6 +68,9 @@ export default function ExamPage() {
   const timerRef = useRef(null);
   const endTimeRef = useRef(null);
   const [wrongIds, setWrongIds] = useState(new Set());
+  // 모의고사 채점 결과는 `exam_results` 에 쌓는다 — `quiz_results` 는 분모가 40 으로
+  // 고정된 코드 퀴즈 진도를 세는 칸이라 모의고사 id 가 섞이면 진도가 어긋난다.
+  const [examResults, setExamResults] = useState(getExamResults);
 
   // 문제 풀 로드
   const [quizPool, setQuizPool] = useState([]);
@@ -109,6 +130,30 @@ export default function ExamPage() {
     setPhase('result');
     const savedWrong = getWrongNotes().filter((n) => n.source === 'exam').map((n) => n.id);
     setWrongIds(new Set(savedWrong));
+  };
+
+  /**
+   * 채점 결과를 남긴다. 자기 채점 버튼과 AI 채점 확정분이 같은 길로 들어온다
+   * (코드 퀴즈의 `recordGrade` 와 같은 구조).
+   *
+   * 쓰기 직전에 저장소를 다시 읽는다. 결과 화면에는 채점 패널이 20개 떠 있고
+   * 여러 문항의 채점이 동시에 진행될 수 있어, 렌더 시점에 잡힌 맵으로 덮어쓰면
+   * 그 사이 끝난 다른 문항의 판정이 사라진다.
+   *
+   * @param {string} id
+   * @param {'correct'|'incorrect'} verdict
+   */
+  const recordGrade = (id, verdict) => {
+    const next = withQuizResult(getExamResults(), id, verdict);
+    saveExamResults(next);
+    setExamResults(next);
+  };
+
+  // §4.2: 확신이 낮은 판정은 확정으로 쓰지 않고 자기 채점 버튼에 맡긴다.
+  const handleAiGrade = (id, result) => {
+    if (!isConfidentGrade(result)) return;
+    const verdict = verdictToQuizResult(result.verdict);
+    if (verdict) recordGrade(id, verdict);
   };
 
   const timerClass = timeLeft < 300 ? 'timer danger' : timeLeft < 600 ? 'timer warning' : 'timer';
@@ -274,15 +319,43 @@ export default function ExamPage() {
           </details>
           {/* AI 채점은 제출 후(이 결과 화면)에만 있다 — 시험 중에 띄우면
               feedback·missedPoints 가 아직 안 푼 문제의 답을 흘린다.
-              저장은 하지 않는다: quiz_results 는 코드 퀴즈 40문항의 진도를
-              세는 칸이라, 모의고사가 낸 단답형 id 까지 섞이면 진도가 어긋난다. */}
+              확정분은 `exam_results` 에 쌓는다: `quiz_results` 는 코드 퀴즈 40문항의
+              진도를 세는 칸이라, 모의고사가 낸 단답형 id 까지 섞이면 진도가 어긋난다. */}
           <AiGradePanel
             key={`grade-${i}`}
             source={toAiSource(examItem(q))}
             kind={toGradeKind(examItem(q))}
             id={q.id}
             userAnswer={answers[i]?.trim() || ''}
+            onResult={(result) => handleAiGrade(q.id, result)}
           />
+
+          {/* 자기 채점 — AI 가 없어도, 확신이 낮아도, 변형 문항이라 패널이 안 떠도
+              여기서 끝낼 수 있다. 카드가 20장 늘어서므로 버튼마다 문항 번호를 붙인다. */}
+          <div className="self-grade">
+            <span className="self-grade-label">직접 채점</span>
+            <button
+              type="button"
+              className={`btn-outline self-grade-button ${examResults[q.id] === QUIZ_RESULT.CORRECT ? 'active' : ''}`}
+              aria-label={`맞았어요 (${q.id}번 문항)`}
+              aria-pressed={examResults[q.id] === QUIZ_RESULT.CORRECT}
+              onClick={() => recordGrade(q.id, QUIZ_RESULT.CORRECT)}
+            >
+              맞았어요
+            </button>
+            <button
+              type="button"
+              className={`btn-outline self-grade-button ${examResults[q.id] === QUIZ_RESULT.INCORRECT ? 'active' : ''}`}
+              aria-label={`틀렸어요 (${q.id}번 문항)`}
+              aria-pressed={examResults[q.id] === QUIZ_RESULT.INCORRECT}
+              onClick={() => recordGrade(q.id, QUIZ_RESULT.INCORRECT)}
+            >
+              틀렸어요
+            </button>
+            <span className="self-grade-state" role="status">
+              {SELF_GRADE_STATE[examResults[q.id]] ?? '아직 채점하지 않음'}
+            </span>
+          </div>
 
           <div style={{ marginTop: 8 }}>
             {wrongIds.has(q.id) ? (

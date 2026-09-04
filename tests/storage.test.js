@@ -27,6 +27,9 @@ import {
   setIncludeVariants,
   VARIANT_RESULTS_KEY,
   variantKnownKey,
+  EXAM_RESULTS_KEY,
+  getExamResults,
+  saveExamResults,
 } from '../src/utils/storage.js';
 
 const PREFIX = 'jungchogi_';
@@ -519,5 +522,73 @@ describe('변형 진도 키', () => {
     const keys = Object.keys(localStorage).filter((k) => k.includes('variant'));
     expect(keys).toHaveLength(2);
     expect(keys.every((k) => k.startsWith(PREFIX))).toBe(true);
+  });
+});
+
+// ─── 모의고사 채점 결과 (Phase 3 잔여) ───
+
+describe('모의고사 채점 결과', () => {
+  it('교재 진도 키와 이름이 겹치지 않는다', () => {
+    // `quiz_results` 는 분모가 40 으로 고정된 코드 퀴즈 진도(`quizDone/40`)를 센다.
+    // 모의고사가 낸 단답형 id(`042`)가 섞이면 진도가 40 을 넘는다 — 변형 진도를
+    // 가른 것과 같은 이유로 키를 가른다.
+    expect(EXAM_RESULTS_KEY).not.toBe('quiz_results');
+    expect(EXAM_RESULTS_KEY).not.toBe(VARIANT_RESULTS_KEY);
+  });
+
+  it('저장한 결과를 그대로 다시 읽는다', () => {
+    expect(saveExamResults({ '042': 'correct', 'C-01': 'incorrect' })).toBe(true);
+    expect(getExamResults()).toEqual({ '042': 'correct', 'C-01': 'incorrect' });
+    expect(localStorage.getItem(`${PREFIX}exam_results`)).toBe(
+      '{"042":"correct","C-01":"incorrect"}'
+    );
+  });
+
+  it('기록이 없으면 빈 맵이다', () => {
+    expect(getExamResults()).toEqual({});
+  });
+
+  it('`quiz_results` 와 같은 세 값을 그대로 담는다', () => {
+    // 값 계약은 코드 퀴즈와 같다 — 읽는 쪽(약점 분석)이 한 규칙으로 두 맵을 센다
+    saveExamResults({ '042': 'correct', '077': 'incorrect', 'C-01': 'answered' });
+    expect(getExamResults()).toEqual({
+      '042': 'correct',
+      '077': 'incorrect',
+      'C-01': 'answered',
+    });
+  });
+
+  it('저장해도 코드 퀴즈 진도는 건드리지 않는다', () => {
+    saveProgress('quiz_results', { 'C-01': 'correct' });
+    saveExamResults({ '042': 'incorrect' });
+    expect(loadProgress('quiz_results', {})).toEqual({ 'C-01': 'correct' });
+  });
+
+  it('손상된 JSON 은 예외 대신 빈 맵이다', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    localStorage.setItem(`${PREFIX}exam_results`, '{"042":');
+    expect(getExamResults()).toEqual({});
+  });
+
+  it('맵이 아닌 값이 들어 있어도 빈 맵으로 본다', () => {
+    // 읽는 쪽이 전부 `{id: 상태}` 맵을 전제한다 — 오답노트·학습시간과 같은 이유로
+    // 여기 한 곳에서 형태를 보장한다
+    for (const stored of ['null', '[]', '"correct"', '3']) {
+      localStorage.setItem(`${PREFIX}exam_results`, stored);
+      expect(getExamResults()).toEqual({});
+    }
+  });
+
+  it('용량이 꽉 차면 던지지 않고 false 를 돌려준다', () => {
+    const quota = Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw quota; });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(saveExamResults({ '042': 'correct' })).toBe(false);
+  });
+
+  it('전체 초기화가 함께 지우도록 jungchogi_ 접두사 아래 쌓인다', () => {
+    saveExamResults({ '042': 'correct' });
+    const keys = Object.keys(localStorage).filter((k) => k.includes('exam_results'));
+    expect(keys).toEqual([`${PREFIX}exam_results`]);
   });
 });

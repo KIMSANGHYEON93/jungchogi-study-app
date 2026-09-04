@@ -285,6 +285,41 @@ export function saveStudyPlan(plan) {
   return saveProgress(STUDY_PLAN_PREFIX + date, plan);
 }
 
+// ─── 모의고사 채점 결과 (Phase 3) ───
+
+/**
+ * 모의고사 채점 결과. `quiz_results` 와 **절대 섞지 않는다.**
+ *
+ * `quiz_results` 는 id 만 키로 쓰는 평평한 맵이고 코드 퀴즈 40문항 진도
+ * (대시보드 `quizDone/40`, 코드 퀴즈 화면의 "남은 문제")가 거기 걸려 있다.
+ * 모의고사는 단답형(`042`)과 코드 드릴(`C-01`)을 섞어 내므로 같은 맵에 쓰면
+ * 진도가 40 을 넘는다. 변형 채점(`variant_results`)을 가른 것과 같은 이유다.
+ *
+ * 값은 `quiz_results` 와 **같은 세 가지**다 — `'correct'|'incorrect'|'answered'`
+ * (`domain/grading.js` 의 `QUIZ_RESULT`). 읽는 쪽(서버 `get_weak_categories`)이
+ * 두 맵을 한 규칙으로 세려면 값 계약이 같아야 한다.
+ */
+export const EXAM_RESULTS_KEY = 'exam_results';
+
+/**
+ * @returns {Record<string, string>} 기록이 없거나 손상됐으면 빈 맵
+ */
+export function getExamResults() {
+  // 오답노트·학습시간과 같은 이유로 여기서 형태를 보장한다 —
+  // 읽는 쪽(스냅샷·약점 분석)이 전부 `{id: 상태}` 맵을 전제한다.
+  // `JSON.parse('null')` 은 예외가 아니라 fallback 을 타지 않는다.
+  const results = loadProgress(EXAM_RESULTS_KEY, {});
+  return results !== null && typeof results === 'object' && !Array.isArray(results) ? results : {};
+}
+
+/**
+ * @param {Record<string, string>} results
+ * @returns {boolean} 저장 성공 여부 (용량 초과 시 false)
+ */
+export function saveExamResults(results) {
+  return saveProgress(EXAM_RESULTS_KEY, results);
+}
+
 // ─── AI 변형 문제 (Phase 4) ───
 
 /**
