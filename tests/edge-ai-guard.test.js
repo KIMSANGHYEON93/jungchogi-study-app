@@ -42,6 +42,7 @@ describe('프로토타입 오염 키', () => {
     const result = validatePlanBody(
       planBody({
         quizResults: withProtoKey('{"__proto__":"correct"}'),
+        examResults: withProtoKey('{"__proto__":"incorrect"}'),
         studyTime: withProtoKey('{"__proto__":5}'),
         dayChecks: withProtoKey('{"__proto__":true}'),
       })
@@ -50,6 +51,7 @@ describe('프로토타입 오염 키', () => {
     expect(result.ok).toBe(true);
     for (const map of [
       result.value.snapshot.quizResults,
+      result.value.snapshot.examResults,
       result.value.snapshot.studyTime,
       result.value.snapshot.dayChecks,
     ]) {

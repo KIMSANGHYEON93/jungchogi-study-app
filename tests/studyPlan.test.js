@@ -77,14 +77,23 @@ describe('buildPlanSnapshot — 정상 데이터', () => {
     setExamDate('2026-10-18');
     saveProgress('wrong_notes', [codeNote('C-01'), codeNote('J-03')]);
     saveProgress('quiz_results', { 'C-01': 'incorrect', 'C-02': 'correct' });
+    saveProgress('exam_results', { '042': 'correct', 'S-02': 'incorrect' });
     saveProgress('study_time', { '2026-09-02': 40, '2026-09-03': 25 });
     saveProgress('day_checks', { 1: true, 2: false, 6: true });
   });
 
-  it('§4.3 이 정한 6개 키만 담는다', () => {
+  it('§4.3 이 정한 키만 담는다 (모의고사 결과 포함 7개)', () => {
     const snapshot = buildPlanSnapshot({ availableMinutes: 90 });
     expect(Object.keys(snapshot).sort()).toEqual(
-      ['availableMinutes', 'dayChecks', 'examDate', 'quizResults', 'studyTime', 'wrongNotes'].sort()
+      [
+        'availableMinutes',
+        'dayChecks',
+        'examDate',
+        'examResults',
+        'quizResults',
+        'studyTime',
+        'wrongNotes',
+      ].sort()
     );
   });
 
@@ -102,6 +111,14 @@ describe('buildPlanSnapshot — 정상 데이터', () => {
     const snapshot = buildPlanSnapshot({});
     expect(snapshot.quizResults).toEqual({ 'C-01': 'incorrect', 'C-02': 'correct' });
     expect(snapshot.studyTime).toEqual({ '2026-09-02': 40, '2026-09-03': 25 });
+  });
+
+  it('모의고사 채점 결과를 별도 필드로 싣는다', () => {
+    // 두 맵을 합쳐 보내면 서버가 어느 쪽 판정인지 구분하지 못한다 —
+    // 겹치는 문항의 우선순위 규칙이 성립하지 않는다
+    const snapshot = buildPlanSnapshot({});
+    expect(snapshot.examResults).toEqual({ '042': 'correct', 'S-02': 'incorrect' });
+    expect(snapshot.quizResults).not.toHaveProperty('042');
   });
 
   it('오답노트는 서버가 읽는 필드만 보내고 본문(코드·정답)은 빼놓는다', () => {
@@ -168,12 +185,14 @@ describe('buildPlanSnapshot — 정상 데이터', () => {
     // 손상되거나 구버전 형식이 섞인 값이 그대로 나가면 서버가 400 을 낸다.
     saveProgress('day_checks', { 1: 1, 2: 'yes', 3: true, 4: 0 });
     saveProgress('quiz_results', { 'C-01': 'correct', 'C-02': 3, 'C-03': null });
+    saveProgress('exam_results', { '042': 'incorrect', '077': false });
     saveProgress('study_time', { '2026-09-03': 25, '2026-09-02': '40' });
 
     const snapshot = buildPlanSnapshot({});
 
     expect(snapshot.dayChecks).toEqual({ 1: true, 2: true, 3: true });
     expect(snapshot.quizResults).toEqual({ 'C-01': 'correct' });
+    expect(snapshot.examResults).toEqual({ '042': 'incorrect' });
     expect(snapshot.studyTime).toEqual({ '2026-09-03': 25 });
   });
 
@@ -190,6 +209,7 @@ describe('buildPlanSnapshot — 데이터가 없을 때', () => {
       examDate: null,
       wrongNotes: [],
       quizResults: {},
+      examResults: {},
       studyTime: {},
       dayChecks: {},
       availableMinutes: DEFAULT_AVAILABLE_MINUTES,
@@ -257,6 +277,14 @@ describe('buildPlanSnapshot — 크기 상한', () => {
     for (let i = 0; i < 500; i++) results[`Q-${i}`] = 'correct';
     saveProgress('quiz_results', results);
     expect(Object.keys(buildPlanSnapshot({}).quizResults)).toHaveLength(SNAPSHOT_LIMITS.quizResults);
+  });
+
+  it('모의고사 결과도 같은 방식으로 잘라낸다', () => {
+    // 상한을 두는 이유가 같다 — 브라우저가 보내는 값이 그대로 토큰 비용이 된다
+    const results = {};
+    for (let i = 0; i < 500; i++) results[`E-${i}`] = 'incorrect';
+    saveProgress('exam_results', results);
+    expect(Object.keys(buildPlanSnapshot({}).examResults)).toHaveLength(SNAPSHOT_LIMITS.examResults);
   });
 
   it('최악의 데이터에서도 직렬화 크기가 32KB 를 넘지 않는다', () => {
@@ -457,6 +485,14 @@ describe('buildPlanSnapshot — AI 변형 문항', () => {
     // 200개 상한을 교재 문항이 아닌 값이 잡아먹는다
     saveProgress('quiz_results', { 'C-01': 'incorrect', 'C-01-v1': 'correct' });
     expect(buildPlanSnapshot({}).quizResults).toEqual({ 'C-01': 'incorrect' });
+  });
+
+  it('examResults 에서도 변형 id 를 뺀다', () => {
+    // 모의고사는 변형을 켜면 변형 문항도 낸다. 자기 채점은 `exam_results` 에
+    // 그대로 쌓이지만(사용자 입력을 버리지 않는다), 교재에 없는 id 는
+    // 서버가 근거를 못 찾으므로 스냅샷 경계에서 뺀다 — quizResults 와 같은 규칙이다
+    saveProgress('exam_results', { '042': 'incorrect', '042-v1': 'correct' });
+    expect(buildPlanSnapshot({}).examResults).toEqual({ '042': 'incorrect' });
   });
 
   it('변형만 있는 오답노트면 빈 목록을 보낸다', () => {

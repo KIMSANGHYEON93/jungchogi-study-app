@@ -9,6 +9,7 @@
 import {
   getWrongNotes,
   getExamDate,
+  getExamResults,
   getStudyTimeLog,
   getSpacedRepetitionDue,
   loadProgress,
@@ -25,6 +26,11 @@ import { isGeneratedItem } from './generatedItems';
  * @property {Record<string, 'correct'|'incorrect'|'answered'>} quizResults
  *   Phase 3 채점 결과와 레거시 값('answered' = 시도했으나 정오 미상)이 섞여 있다.
  *   서버(`lib/ai/tools/snapshotTools.js`)가 세 값을 구분해 약점 분석에 쓴다.
+ * @property {Record<string, 'correct'|'incorrect'|'answered'>} examResults
+ *   모의고사 채점 결과. 값 계약은 `quizResults` 와 **같다**. 맵을 가른 이유는
+ *   두 가지다 — 저장소에서는 코드 퀴즈 진도(`quizDone/40`)가 `quiz_results` 에
+ *   걸려 있어 모의고사 id 가 섞이면 진도가 어긋나고, 스냅샷에서는 두 맵을 합쳐
+ *   보내면 겹치는 문항에 어느 쪽 판정을 쓸지 서버가 정할 수 없다.
  * @property {Record<string, number>} studyTime 최근 며칠간 `YYYY-MM-DD → 분`
  * @property {Record<string, true>} dayChecks 완료 표시한 Day 만
  * @property {number} availableMinutes 오늘 낼 수 있는 학습 시간(분)
@@ -113,6 +119,8 @@ export function clampAvailableMinutes(value) {
 export const SNAPSHOT_LIMITS = {
   wrongNotes: 60,
   quizResults: 200,
+  /** 모의고사 결과도 같은 이유·같은 방식으로 자른다 (`quizResults` 와 같은 상한) */
+  examResults: 200,
   studyTimeDays: 14,
   /** 문항 라벨(question)의 최대 길이 — 서버는 500자에서 자른다 */
   noteLabel: 120,
@@ -203,15 +211,23 @@ function recentStudyTime() {
 
 // 값을 세 가지로 좁히지 않고 문자열이면 통과시킨다 — 서버가 계약 밖 값을
 // 레거시(정오 미상)와 같게 다루므로, 여기서 걸러 정보를 없애는 쪽이 더 위험하다.
-function cappedQuizResults() {
-  const results = loadProgress('quiz_results', {}) || {};
-  const entries = Object.entries(results)
+//
+// 채점 결과 맵 두 개(`quiz_results`·`exam_results`)가 같은 규칙을 쓴다.
+// 값 계약이 같고 서버가 한 규칙으로 세므로, 다듬는 방식도 한 곳에 둔다.
+/**
+ * @param {unknown} results
+ * @param {number} limit
+ * @returns {Record<string, string>}
+ */
+function cappedResults(results, limit) {
+  const entries = Object.entries(results && typeof results === 'object' ? results : {})
     .filter(([, verdict]) => typeof verdict === 'string')
     // 변형 id 는 서버가 교재에서 못 찾아 get_weak_categories 에서 어차피 버려진다.
-    // 200개 상한을 쓸모없는 값이 잡아먹지 않게 여기서 뺀다.
-    // (변형 채점은 `variant_results` 에 따로 쌓이지만, 옛 데이터가 섞였을 수 있다)
+    // 상한을 쓸모없는 값이 잡아먹지 않게 여기서 뺀다.
+    // (변형 채점은 `variant_results` 에 따로 쌓이지만, 옛 데이터가 섞였을 수 있고
+    //  모의고사는 변형을 켜면 변형 문항의 자기 채점도 `exam_results` 에 쌓인다)
     .filter(([id]) => !isGeneratedItem({ id }))
-    .slice(0, SNAPSHOT_LIMITS.quizResults);
+    .slice(0, limit);
   return Object.fromEntries(entries);
 }
 
@@ -236,7 +252,8 @@ export function buildPlanSnapshot(options = {}) {
     // 시험일은 앱에서도 선택 항목이고, 없으면 "마감 없는 계획"으로 세우면 된다.
     examDate: getExamDate() ?? null,
     wrongNotes: selectWrongNotes(),
-    quizResults: cappedQuizResults(),
+    quizResults: cappedResults(loadProgress('quiz_results', {}), SNAPSHOT_LIMITS.quizResults),
+    examResults: cappedResults(getExamResults(), SNAPSHOT_LIMITS.examResults),
     studyTime: recentStudyTime(),
     dayChecks: completedDayChecks(),
     availableMinutes: clampAvailableMinutes(options?.availableMinutes),

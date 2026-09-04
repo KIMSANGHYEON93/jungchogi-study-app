@@ -32,6 +32,7 @@ const snapshot = (overrides = {}) => ({
   examDate: null,
   wrongNotes: [],
   quizResults: {},
+  examResults: {},
   studyTime: {},
   dayChecks: {},
   availableMinutes: 60,
@@ -110,6 +111,94 @@ describe('채점 결과가 오답노트 추정을 이긴다', () => {
     );
 
     expect(byName(result)['소프트웨어공학']).toMatchObject({ attempted: 1, wrong: 1, accuracy: 0 });
+  });
+});
+
+describe('모의고사 채점 결과(examResults)도 센다', () => {
+  it('모의고사에서만 푼 문항도 시도·오답에 들어간다', () => {
+    // 이걸 못 세던 것이 Phase 3 이 남긴 구멍이다 — 모의고사를 아무리 봐도
+    // 약점 분석에는 한 글자도 반영되지 않았다
+    const result = runGetWeakCategories(snapshot({ examResults: { '001': 'incorrect' } }));
+
+    expect(byName(result)['데이터베이스']).toEqual({
+      category: '데이터베이스',
+      attempted: 1,
+      wrong: 1,
+      accuracy: 0,
+    });
+  });
+
+  it('quizResults 와 같은 값 계약을 쓴다', () => {
+    const result = runGetWeakCategories(
+      snapshot({ examResults: { '001': 'correct', '002': 'incorrect' } })
+    );
+
+    expect(byName(result)['데이터베이스']).toMatchObject({ attempted: 2, wrong: 1, accuracy: 0.5 });
+  });
+
+  it('오답노트 추정보다 모의고사 채점이 먼저다', () => {
+    const result = runGetWeakCategories(
+      snapshot({
+        wrongNotes: [note('quiz100', '001')],
+        examResults: { '001': 'correct' },
+      })
+    );
+
+    expect(byName(result)['데이터베이스']).toMatchObject({ attempted: 1, wrong: 0 });
+  });
+
+  it('두 맵에 같은 문항이 있어도 시도는 한 번만 센다', () => {
+    const result = runGetWeakCategories(
+      snapshot({ quizResults: { '001': 'incorrect' }, examResults: { '001': 'incorrect' } })
+    );
+
+    expect(byName(result)['데이터베이스']).toMatchObject({ attempted: 1, wrong: 1 });
+  });
+
+  // ── 겹치는 문항의 우선순위 ──
+  //
+  // 두 맵 모두 타임스탬프가 없어 "더 최근 것"을 고를 수 없다. 그래서 순서를 규칙으로
+  // 못 박는다: **모의고사 채점이 코드 퀴즈 채점을 이긴다.**
+  // 모의고사는 정답을 가린 채 시간 제한 아래에서 한 번에 푸는 실전 조건이고,
+  // 코드 퀴즈는 "정답 확인" 버튼이 바로 옆에 있는 연습 화면이다. 실력 추정으로서
+  // 앞의 것이 뒤의 것보다 낫다. 아는 것이 추정을 이긴다는 기존 규칙의 연장이다.
+
+  it('같은 문항이 코드 퀴즈에서는 정답, 모의고사에서는 오답이면 오답으로 센다', () => {
+    const result = runGetWeakCategories(
+      snapshot({ quizResults: { '001': 'correct' }, examResults: { '001': 'incorrect' } })
+    );
+
+    expect(byName(result)['데이터베이스']).toMatchObject({ attempted: 1, wrong: 1, accuracy: 0 });
+  });
+
+  it('반대 방향도 같은 규칙이다 — 모의고사에서 맞았으면 오답이 아니다', () => {
+    const result = runGetWeakCategories(
+      snapshot({ quizResults: { '001': 'incorrect' }, examResults: { '001': 'correct' } })
+    );
+
+    expect(byName(result)['데이터베이스']).toMatchObject({ attempted: 1, wrong: 0, accuracy: 1 });
+  });
+
+  it("모의고사의 'answered' 는 코드 퀴즈의 확정 판정을 덮지 않는다", () => {
+    // 우선순위는 **아는 것끼리**의 규칙이다. 정오 미상이 확정을 밀어내면
+    // "아는 것이 추정을 이긴다"가 뒤집힌다
+    const result = runGetWeakCategories(
+      snapshot({ quizResults: { '001': 'incorrect' }, examResults: { '001': 'answered' } })
+    );
+
+    expect(byName(result)['데이터베이스']).toMatchObject({ attempted: 1, wrong: 1 });
+  });
+});
+
+describe('examResults 를 모르는 옛 클라이언트', () => {
+  it('필드가 없어도 예전과 똑같이 계산한다', () => {
+    const old = snapshot({ quizResults: { '001': 'incorrect' } });
+    delete old.examResults;
+
+    expect(byName(runGetWeakCategories(old))['데이터베이스']).toMatchObject({
+      attempted: 1,
+      wrong: 1,
+    });
   });
 });
 
