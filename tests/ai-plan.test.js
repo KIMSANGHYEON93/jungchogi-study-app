@@ -214,7 +214,8 @@ describe('POST /api/ai/plan — 성공 경로', () => {
     const res = await POST(makeRequest({ snapshot: snapshot() }));
     const all = await frames(res);
 
-    expect(all.at(-1)).toEqual({ done: true, plan: PLAN, usage: USAGE });
+    // Phase 5 에서 done 프레임에 cost 가 **더해졌다**. plan·usage 는 그대로다.
+    expect(all.at(-1)).toEqual({ done: true, plan: PLAN, usage: USAGE, cost: expect.any(Object) });
     expect(all.filter((f) => f.done)).toHaveLength(1);
   });
 
@@ -494,6 +495,6 @@ describe('POST /api/ai/plan — 도구 호출 상한', () => {
     expect(results.slice(0, MAX_TOOL_CALLS).every((f) => f.ok)).toBe(true);
     expect(results.slice(MAX_TOOL_CALLS).every((f) => f.ok === false)).toBe(true);
     // 상한을 넘어도 계획은 나온다 — 모델에게 "그만 쓰고 마무리하라"고 돌려주기 때문
-    expect(all.at(-1)).toEqual({ done: true, plan: PLAN, usage: USAGE });
+    expect(all.at(-1)).toEqual({ done: true, plan: PLAN, usage: USAGE, cost: expect.any(Object) });
   });
 });

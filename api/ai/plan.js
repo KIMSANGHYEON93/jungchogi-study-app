@@ -15,7 +15,13 @@
 // (`export default (req,res)` 면 응답이 전량 버퍼링돼 SSE 가 몰려 나간다).
 // 함수 실행 시간(maxDuration 60)·`public/data` 번들 포함은 `vercel.json` 참조.
 
-import { runPlanner, classifyUpstreamError, hasApiKey } from '../../lib/ai/client.js';
+import {
+  runPlanner,
+  classifyUpstreamError,
+  hasApiKey,
+  MODEL,
+  PLAN_EFFORT,
+} from '../../lib/ai/client.js';
 import {
   jsonError,
   getClientIp,
@@ -25,6 +31,7 @@ import {
 } from '../../lib/ai/guard.js';
 import { readDataFile, CACHE_PREFIX_FILE } from '../../lib/ai/content.js';
 import { createPlannerTools, MAX_TOOL_CALLS } from '../../lib/ai/tools/index.js';
+import { buildUsageRecord, logUsage } from '../../lib/ai/usage.js';
 
 /**
  * 시스템 프롬프트. **모든 요청에서 바이트 단위로 같아야 한다** —
@@ -318,6 +325,24 @@ export async function POST(request) {
 
   const { tools, stats } = createPlannerTools({ snapshot, now, onEvent: push });
 
+  //    지연은 **업스트림 호출**부터 잰다 (게이트·검증 시간이 아니라).
+  const startedAt = Date.now();
+
+  /** 요청 하나에 사용 기록 한 줄. 성공·실패 어느 쪽으로 끝나도 정확히 한 번 부른다. */
+  const record = ({ usage, ok, errorCode }) => {
+    const built = buildUsageRecord({
+      endpoint: 'plan',
+      model: MODEL,
+      effort: PLAN_EFFORT,
+      usage,
+      latencyMs: Date.now() - startedAt,
+      ok,
+      errorCode,
+    });
+    logUsage(built.record, built.cost);
+    return built.cost;
+  };
+
   // 5) 러너를 만들고 **첫 턴이 끝날 때까지** 기다린다.
   //    여기서 실패하면 아직 아무것도 안 보냈으므로 계약대로 JSON 오류로 내려갈 수 있다
   //    (헤더를 내보낸 뒤에는 상태코드를 되돌릴 수 없다).
@@ -336,6 +361,7 @@ export async function POST(request) {
   } catch (error) {
     const failure = classifyUpstreamError(error);
     console.error('[ai/plan] 첫 턴 실패', failure.status, error);
+    record({ usage: null, ok: false, errorCode: failure.code });
     return jsonError(failure.code, failure.message, { retryable: failure.retryable });
   }
 
@@ -360,7 +386,15 @@ export async function POST(request) {
             `usage=${JSON.stringify(final?.usage ?? {})} stop=${final?.stop_reason ?? ''}`
         );
 
+        // 계획 추출 결과가 나온 뒤에 기록한다 — 토큰은 썼지만 계획을 못 낸 요청은
+        // ok:false 다. 순서를 바꾸면 실패를 성공으로 세게 된다.
         const extracted = extractPlan(final);
+        const cost = record({
+          usage: final?.usage,
+          ok: extracted.ok,
+          errorCode: extracted.ok ? null : 'UPSTREAM',
+        });
+
         if (!extracted.ok) {
           console.error('[ai/plan] 계획 추출 실패:', extracted.reason);
           controller.enqueue(
@@ -375,10 +409,15 @@ export async function POST(request) {
           return;
         }
 
-        controller.enqueue(sseFrame({ done: true, plan: extracted.plan, usage: final?.usage }));
+        // 기존 필드는 그대로 두고 cost 만 **더한다** (프론트가 이미 plan·usage 를 읽는다).
+        controller.enqueue(
+          sseFrame({ done: true, plan: extracted.plan, usage: final?.usage, cost })
+        );
       } catch (error) {
         const failure = classifyUpstreamError(error);
         console.error('[ai/plan] 스트림 도중 실패', failure.status, error);
+        // 끊겼어도 기록은 남긴다 — 실패한 요청에도 토큰이 나갔을 수 있다.
+        record({ usage: null, ok: false, errorCode: failure.code });
         controller.enqueue(
           sseFrame({
             error: { code: failure.code, message: failure.message, retryable: failure.retryable },

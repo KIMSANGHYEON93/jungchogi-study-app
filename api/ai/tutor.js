@@ -17,7 +17,13 @@
 // 본문이 `ReadableStream` 인 `Response` 를 돌려주면 그대로 흘러나간다.
 // 함수 실행 시간·`public/data` 번들 포함은 `vercel.json` 의 `functions` 항목 참조.
 
-import { streamTutorMessage, classifyUpstreamError, hasApiKey } from '../../lib/ai/client.js';
+import {
+  streamTutorMessage,
+  classifyUpstreamError,
+  hasApiKey,
+  MODEL,
+  TUTOR_EFFORT,
+} from '../../lib/ai/client.js';
 import {
   jsonError,
   getClientIp,
@@ -32,6 +38,7 @@ import {
   readDataFile,
   CACHE_PREFIX_FILE,
 } from '../../lib/ai/content.js';
+import { buildUsageRecord, logUsage } from '../../lib/ai/usage.js';
 
 /**
  * 시스템 프롬프트. **모든 요청에서 바이트 단위로 같아야 한다** —
@@ -204,6 +211,43 @@ export async function POST(request) {
   // 6) 스트림을 열고 **첫 이벤트까지만** 먼저 받아 본다.
   //    여기서 실패하면 아직 아무것도 안 보냈으므로 계약대로 JSON 오류로 내려갈 수 있다.
   //    (헤더를 내보낸 뒤에는 상태코드를 되돌릴 수 없다)
+  //
+  //    이 시점부터 지연을 잰다 — 게이트·문항 로드가 아니라 **업스트림 호출**의 시간이다.
+  const startedAt = Date.now();
+
+  /**
+   * 스트림이 흘리는 usage 를 누적한다.
+   *
+   * `message_start` 에 입력·캐시 토큰이, `message_delta` 에 누적 출력 토큰이 실려 온다.
+   * 중간에 끊기면 출력만 모르는 상태가 되는데, 그 "모름" 을 0 으로 때우지 않으려면
+   * 본 것과 못 본 것을 나눠 들고 있어야 한다.
+   */
+  let observed = null;
+  const observeUsage = (event) => {
+    const chunk =
+      event?.type === 'message_start'
+        ? event.message?.usage
+        : event?.type === 'message_delta'
+          ? event.usage
+          : null;
+    if (chunk && typeof chunk === 'object') observed = { ...(observed ?? {}), ...chunk };
+  };
+
+  /** 요청 하나에 사용 기록 한 줄. 성공·실패 어느 쪽으로 끝나도 정확히 한 번 부른다. */
+  const record = ({ usage, ok, errorCode }) => {
+    const built = buildUsageRecord({
+      endpoint: 'tutor',
+      model: MODEL,
+      effort: TUTOR_EFFORT,
+      usage,
+      latencyMs: Date.now() - startedAt,
+      ok,
+      errorCode,
+    });
+    logUsage(built.record, built.cost);
+    return built.cost;
+  };
+
   let iterator;
   let firstEvent;
   let stream;
@@ -214,6 +258,7 @@ export async function POST(request) {
   } catch (error) {
     const failure = classifyUpstreamError(error);
     console.error('[ai/tutor] 스트림 시작 실패', failure.status, error);
+    record({ usage: observed, ok: false, errorCode: failure.code });
     return jsonError(failure.code, failure.message, { retryable: failure.retryable });
   }
 
@@ -221,6 +266,7 @@ export async function POST(request) {
   const body = new ReadableStream({
     async start(controller) {
       const emitText = (event) => {
+        observeUsage(event);
         if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
           controller.enqueue(sseFrame({ delta: event.delta.text }));
         }
@@ -237,10 +283,14 @@ export async function POST(request) {
         console.log(
           `[ai/tutor] ${source}/${id} usage=${JSON.stringify(final.usage ?? {})} stop=${final.stop_reason ?? ''}`
         );
-        controller.enqueue(sseFrame({ done: true, usage: final.usage }));
+        const cost = record({ usage: final.usage, ok: true, errorCode: null });
+        // 기존 필드는 그대로 두고 cost 만 **더한다** (프론트가 이미 usage 를 읽는다).
+        controller.enqueue(sseFrame({ done: true, usage: final.usage, cost }));
       } catch (error) {
         const failure = classifyUpstreamError(error);
         console.error('[ai/tutor] 스트림 도중 실패', failure.status, error);
+        // 끊겼어도 그때까지 본 토큰은 기록한다 — 실패한 요청에도 돈이 나간다.
+        record({ usage: observed, ok: false, errorCode: failure.code });
         controller.enqueue(
           sseFrame({
             error: { code: failure.code, message: failure.message, retryable: failure.retryable },

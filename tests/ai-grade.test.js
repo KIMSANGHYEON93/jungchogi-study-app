@@ -120,7 +120,8 @@ describe('POST /api/ai/grade — 성공 경로', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('application/json');
-    await expect(res.json()).resolves.toEqual(GRADE);
+    // Phase 5 에서 cost 가 **더해졌다**. 계약된 다섯 필드는 그대로다.
+    await expect(res.json()).resolves.toEqual({ ...GRADE, cost: expect.any(Object) });
   });
 
   it('스트리밍하지 않는다 (SSE 가 아니다)', async () => {
@@ -137,6 +138,7 @@ describe('POST /api/ai/grade — 성공 경로', () => {
     const body = await res.json();
     expect(Object.keys(body).sort()).toEqual([
       'confidence',
+      'cost',
       'feedback',
       'missedPoints',
       'score',
@@ -348,7 +350,10 @@ describe('POST /api/ai/grade — 스키마를 벗어난 응답', () => {
   it('parsed_output 이 없으면 텍스트 블록을 직접 파싱한다', async () => {
     parseMock.mockResolvedValue(textOnlyMessage(JSON.stringify(GRADE)));
 
-    await expect((await POST(makeRequest(shortBody()))).json()).resolves.toEqual(GRADE);
+    await expect((await POST(makeRequest(shortBody()))).json()).resolves.toEqual({
+      ...GRADE,
+      cost: expect.any(Object),
+    });
   });
 
   it('응답이 JSON 이 아니면 502 로 거절한다', async () => {

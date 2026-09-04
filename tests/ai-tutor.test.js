@@ -128,17 +128,25 @@ describe('POST /api/ai/tutor — SSE 성공 경로', () => {
     const frames = parseSse(await res.text());
 
     expect(frames.slice(0, -1)).toEqual([{ delta: '첫 조각' }, { delta: ' 둘째 조각' }]);
-    expect(frames.at(-1)).toEqual({ done: true, usage: DEFAULT_USAGE });
+    // Phase 5 에서 done 프레임에 cost 가 **더해졌다**. usage 는 그대로다.
+    expect(frames.at(-1)).toEqual({ done: true, usage: DEFAULT_USAGE, cost: expect.any(Object) });
   });
 
   it('각 프레임은 `data: <json>` 한 줄이고 빈 줄로 끝난다', async () => {
     streamMock.mockImplementation(() => fakeStream({ deltas: ['가', '나'] }));
     const raw = await (await POST(makeRequest(body()))).text();
-    expect(raw).toBe(
-      'data: {"delta":"가"}\n\n' +
-        'data: {"delta":"나"}\n\n' +
-        `data: ${JSON.stringify({ done: true, usage: DEFAULT_USAGE })}\n\n`
-    );
+
+    // Phase 5 에서 done 프레임에 cost 가 붙어 통째로 비교하지 않는다.
+    // 여기서 지키는 계약은 "한 프레임 = `data: ` + JSON 한 줄 + 빈 줄" 이다.
+    const chunks = raw.split('\n\n');
+    expect(chunks.at(-1)).toBe(''); // 마지막 프레임도 빈 줄로 끝난다
+    const sent = chunks.slice(0, -1);
+
+    expect(sent).toHaveLength(3);
+    expect(sent[0]).toBe('data: {"delta":"가"}');
+    expect(sent[1]).toBe('data: {"delta":"나"}');
+    expect(sent[2].startsWith('data: {"done":true,')).toBe(true);
+    for (const frame of sent) expect(frame).not.toContain('\n');
   });
 
   it('done 프레임의 usage 로 캐시 적중을 확인할 수 있다', async () => {

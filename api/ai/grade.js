@@ -15,7 +15,13 @@
 // 메서드인 export(웹 핸들러)를 보고 웹 표준 Request/Response 로 다룬다.
 // 실행 시간·`public/data` 번들 포함은 `vercel.json` 참조.
 
-import { gradeMessage, classifyUpstreamError, hasApiKey } from '../../lib/ai/client.js';
+import {
+  gradeMessage,
+  classifyUpstreamError,
+  hasApiKey,
+  MODEL,
+  GRADE_EFFORT,
+} from '../../lib/ai/client.js';
 import {
   jsonError,
   getClientIp,
@@ -24,6 +30,7 @@ import {
   validateGradeBody,
 } from '../../lib/ai/guard.js';
 import { loadProblem, readDataFile, CACHE_PREFIX_FILE } from '../../lib/ai/content.js';
+import { buildUsageRecord, logUsage } from '../../lib/ai/usage.js';
 
 /**
  * 시스템 프롬프트. **모든 요청에서 바이트 단위로 같아야 한다** —
@@ -329,6 +336,24 @@ export async function POST(request) {
   }
 
   // 5) 호출 — 스트리밍하지 않으므로 실패는 전부 여기서 잡히고 계약대로 상태코드를 줄 수 있다
+  //    지연은 **업스트림 호출**부터 잰다 (게이트·문항 로드 시간이 아니라).
+  const startedAt = Date.now();
+
+  /** 요청 하나에 사용 기록 한 줄. 성공·실패 어느 쪽으로 끝나도 정확히 한 번 부른다. */
+  const record = ({ usage, ok, errorCode }) => {
+    const built = buildUsageRecord({
+      endpoint: 'grade',
+      model: MODEL,
+      effort: GRADE_EFFORT,
+      usage,
+      latencyMs: Date.now() - startedAt,
+      ok,
+      errorCode,
+    });
+    logUsage(built.record, built.cost);
+    return built.cost;
+  };
+
   let message;
   try {
     message = await gradeMessage({
@@ -339,6 +364,7 @@ export async function POST(request) {
   } catch (error) {
     const failure = classifyUpstreamError(error);
     console.error('[ai/grade] 채점 요청 실패', failure.status, error);
+    record({ usage: null, ok: false, errorCode: failure.code });
     return jsonError(failure.code, failure.message, { retryable: failure.retryable });
   }
 
@@ -347,8 +373,15 @@ export async function POST(request) {
       `stop=${message?.stop_reason ?? ''}`
   );
 
-  // 6) 응답 검증 — 계약을 어긴 응답을 그대로 흘리면 화면이 깨진다
+  // 6) 응답 검증 — 계약을 어긴 응답을 그대로 흘리면 화면이 깨진다.
+  //    검증 결과가 나온 뒤에 기록한다 — 토큰은 썼지만 채점을 못 낸 요청은 ok:false 다.
   const normalized = normalizeGrade(message);
+  const cost = record({
+    usage: message?.usage,
+    ok: normalized.ok,
+    errorCode: normalized.ok ? null : 'UPSTREAM',
+  });
+
   if (!normalized.ok) {
     const truncated = message?.stop_reason === 'max_tokens';
     console.error('[ai/grade] 채점 결과 추출 실패:', normalized.reason);
@@ -364,5 +397,10 @@ export async function POST(request) {
     console.warn(`[ai/grade] 스키마 밖 값을 조였습니다: ${normalized.clamped.join(', ')}`);
   }
 
-  return new Response(JSON.stringify(normalized.grade), { status: 200, headers: JSON_HEADERS });
+  // 계약된 다섯 필드는 그대로 두고 cost 만 **더한다**.
+  // 프론트의 정규화(`src/domain/grading.js`)가 모르는 필드를 버리므로 안전하다.
+  return new Response(JSON.stringify({ ...normalized.grade, cost }), {
+    status: 200,
+    headers: JSON_HEADERS,
+  });
 }
