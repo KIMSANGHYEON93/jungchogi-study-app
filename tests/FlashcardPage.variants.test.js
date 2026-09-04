@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import FlashcardPage from '../src/pages/FlashcardPage.jsx';
@@ -49,7 +50,8 @@ function render() {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(createElement(FlashcardPage)));
+  // 이 화면은 `?id=` 딥링크를 읽으므로 Router 안에서만 그려진다
+  act(() => root.render(createElement(MemoryRouter, null, createElement(FlashcardPage))));
   return {
     container,
     unmount: () => {

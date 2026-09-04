@@ -94,6 +94,20 @@ export function useDeepLinkedIndex(items, requestedId) {
 }
 
 /**
+ * 안내 배너의 모양. 세 화면이 같은 배너를 쓰므로 한 곳에 둔다.
+ * 문항의 "함정" 안내와 같은 결(경고 톤)로 맞췄다.
+ */
+export const DEEP_LINK_NOTICE_STYLE = {
+  margin: '12px 0',
+  padding: '10px 14px',
+  borderRadius: 8,
+  fontSize: '0.9rem',
+  background: 'rgba(251,191,36,0.1)',
+  border: '1px solid var(--warning)',
+  color: 'var(--text)',
+};
+
+/**
  * 코드 퀴즈·플래시카드가 함께 쓰는 안내 문구.
  * 두 화면 모두 "첫 문항으로 떨어졌다"가 폴백이고 변형 토글을 갖고 있어 문구가 같다.
  *

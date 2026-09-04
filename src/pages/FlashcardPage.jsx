@@ -12,22 +12,47 @@ import Icon from '../components/Icon';
 import GeneratedBadge, { GeneratedAnswerNotice } from '../components/GeneratedBadge';
 import VariantToggle from '../components/VariantToggle';
 import { isGeneratedItem } from '../domain/generatedItems';
+import {
+  useDeepLinkId,
+  useDeepLinkedIndex,
+  deckDeepLinkNotice,
+  DEEP_LINK_NOTICE_STYLE,
+} from '../hooks/useDeepLink';
 
 const CATEGORIES = ['전체', '데이터베이스', '소프트웨어공학', '디자인패턴/UML', '테스트', '보안/네트워크', 'OS/기타'];
 
 // `source` 는 생성물 파일 이름(BLUEPRINT §4.4)이다.
 // 덱 키(bogang119)와 교재 출처 이름(bogang)이 달라 한 곳에서 맞춰 둔다.
+// `idPattern` 은 서버 guard 의 ID_PATTERN 과 같은 형식에 변형 접미사(`-v1`)를 붙인 것이다.
 const DECKS = [
-  { key: 'quiz100', label: '단답형 100선', file: '정처기_단답형_100선.md', parser: 'quiz', source: 'quiz100' },
-  { key: 'bogang119', label: '암기 119선 보강', file: '정처기_보강_기출분석_암기119선.md', parser: 'bogang', source: 'bogang' },
+  { key: 'quiz100', label: '단답형 100선', file: '정처기_단답형_100선.md', parser: 'quiz', source: 'quiz100', idPattern: /^\d{3}(-v\d+)?$/ },
+  { key: 'bogang119', label: '암기 119선 보강', file: '정처기_보강_기출분석_암기119선.md', parser: 'bogang', source: 'bogang', idPattern: /^B\d{2,3}(-v\d+)?$/ },
 ];
+
+const DEFAULT_DECK = 'quiz100';
+
+/**
+ * `/flashcard?id=<문항 id>` 가 어느 덱을 가리키는지 가른다.
+ *
+ * 계약에 덱 이름이 없으므로 화면이 판단해야 한다. 교재 id 형식이 덱마다 겹치지
+ * 않아(`001` vs `B01`) 모양으로 갈릴 수 있다 — 두 덱을 다 뒤지려면 md 를 둘 다
+ * 받아야 하고, 그러면 덱 선택이 fetch 결과에 매달려 effect 안으로 들어간다.
+ *
+ * @param {string|null} id
+ * @returns {string|null} 어느 덱 형식도 아니면 null (기본 덱으로 열고 안내한다)
+ */
+function deckForId(id) {
+  if (!id) return null;
+  return DECKS.find((d) => d.idPattern.test(id))?.key ?? null;
+}
 
 export default function FlashcardPage() {
   useStudyTimer();
-  const [deck, setDeck] = useState('quiz100');
+  // `/flashcard?id=B07` 로 지목받은 카드. 첫 렌더에만 읽는다.
+  const requestedId = useDeepLinkId();
+  const [deck, setDeck] = useState(() => deckForId(requestedId) ?? DEFAULT_DECK);
   const [allCards, setAllCards] = useState([]);
   const [shuffled, setShuffled] = useState(null);
-  const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [category, setCategory] = useState('전체');
   const [known, setKnown] = useState({});
@@ -52,10 +77,6 @@ export default function FlashcardPage() {
         setVariantsAvailable(available);
         setKnown(loadProgress(`flashcard_known_${deck}`, {}));
         setVariantKnown(loadProgress(variantKnownKey(deck), {}));
-        setIdx(0);
-        setFlipped(false);
-        setCategory('전체');
-        setFilterMode('all');
       });
     return () => { cancelled = true; };
   }, [deck, includeVariants]);
@@ -78,6 +99,12 @@ export default function FlashcardPage() {
   // 셔플은 그 대상이 지금의 filtered 와 같을 때만 유효하다
   const cards = shuffled && shuffled.source === filtered ? shuffled.order : filtered;
 
+  // 카드 커서. 딥링크가 지목한 카드가 지금 목록에 있으면 거기서 시작한다.
+  // 목록이 줄어 커서가 범위를 벗어나는 경우(모르는 것만 필터에서 외움 처리)도
+  // 이 훅이 첫 카드로 되돌린다.
+  const { index: idx, setIndex, missedId } = useDeepLinkedIndex(cards, requestedId);
+  const deepLinkNotice = deckDeepLinkNotice(missedId, { variantsOff: !includeVariants });
+
   // 변형 카드의 진도는 교재 진도와 **다른 키**에 쌓는다.
   // 대시보드는 `flashcard_known_<deck>` 의 값 개수를 분모 100(단답형)·24(보강)에
   // 나눠 진도를 낸다. 변형 id 가 같은 맵에 들어가면 진도가 100% 를 넘고
@@ -94,8 +121,8 @@ export default function FlashcardPage() {
     saveProgress(`flashcard_known_${deck}`, next);
   }, [known, variantKnown, deck]);
 
-  const next = useCallback(() => { setFlipped(false); setIdx((i) => Math.min(i + 1, cards.length - 1)); }, [cards.length]);
-  const prev = useCallback(() => { setFlipped(false); setIdx((i) => Math.max(i - 1, 0)); }, []);
+  const next = useCallback(() => { setFlipped(false); setIndex(Math.min(idx + 1, cards.length - 1)); }, [idx, cards.length, setIndex]);
+  const prev = useCallback(() => { setFlipped(false); setIndex(Math.max(idx - 1, 0)); }, [idx, setIndex]);
 
   const shuffle = useCallback(() => {
     const a = [...cards];
@@ -105,13 +132,24 @@ export default function FlashcardPage() {
     }
     // 셔플 결과를 현재 filtered 에 묶어 둔다 — 필터가 바뀌면 자동 폐기된다
     setShuffled({ source: filtered, order: a });
-    setIdx(0);
+    setIndex(0);
     setFlipped(false);
-  }, [cards, filtered]);
+  }, [cards, filtered, setIndex]);
 
   // 필터를 바꾸면 첫 카드로 되돌린다 — effect 대신 이벤트 핸들러에서 리셋
-  const changeCategory = (cat) => { setCategory(cat); setIdx(0); setFlipped(false); };
-  const changeFilterMode = (mode) => { setFilterMode(mode); setIdx(0); setFlipped(false); };
+  const changeCategory = (cat) => { setCategory(cat); setIndex(0); setFlipped(false); };
+  const changeFilterMode = (mode) => { setFilterMode(mode); setIndex(0); setFlipped(false); };
+
+  // 덱을 바꾸면 필터·커서를 처음 상태로 돌린다. 예전에는 로드 콜백이 이 일을 했는데,
+  // 그러면 카드가 도착할 때마다 커서가 0 으로 밀려 딥링크가 지워진다.
+  const changeDeck = (key) => {
+    if (key === deck) return;
+    setDeck(key);
+    setIndex(0);
+    setFlipped(false);
+    setCategory('전체');
+    setFilterMode('all');
+  };
 
   useEffect(() => {
     const handler = (e) => {
@@ -131,9 +169,7 @@ export default function FlashcardPage() {
   // 진도는 **교재 카드만** 센다 — 변형은 덤이지 진도의 분모가 아니다
   const baseCards = allCards.filter((c) => !isGeneratedItem(c));
   const knownCount = baseCards.filter((c) => known[c.id]).length;
-  // 모르는 것만 필터에서 카드를 외움 처리하면 목록이 줄어 idx 가 범위를 벗어날 수 있다
-  const idxInRange = idx < cards.length ? idx : 0;
-  const current = cards[idxInRange];
+  const current = cards[idx];
 
   return (
     <div className="page">
@@ -146,7 +182,7 @@ export default function FlashcardPage() {
           <button
             key={d.key}
             className={`deck-btn ${deck === d.key ? 'active' : ''}`}
-            onClick={() => setDeck(d.key)}
+            onClick={() => changeDeck(d.key)}
           >
             {d.label}
           </button>
@@ -186,9 +222,17 @@ export default function FlashcardPage() {
         <VariantToggle
           enabled={includeVariants}
           available={variantsAvailable}
-          onChange={(next) => { changeIncludeVariants(next); setIdx(0); setFlipped(false); }}
+          onChange={(next) => { changeIncludeVariants(next); setIndex(0); setFlipped(false); }}
         />
       </div>
+
+      {/* 지목받은 카드를 못 찾았을 때. 조용히 다른 카드를 열면 사용자는
+          계획이 틀렸는지 앱이 틀렸는지 알 수 없다. */}
+      {deepLinkNotice && (
+        <div className="deep-link-notice" role="status" style={DEEP_LINK_NOTICE_STYLE}>
+          {deepLinkNotice}
+        </div>
+      )}
 
       {cards.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>
@@ -218,11 +262,11 @@ export default function FlashcardPage() {
           </div>
 
           <div className="flashcard-nav">
-            <button className="btn-outline" onClick={prev} disabled={idxInRange === 0} aria-label="이전 카드"><Icon name="chevron-left" size={16}/> 이전</button>
+            <button className="btn-outline" onClick={prev} disabled={idx === 0} aria-label="이전 카드"><Icon name="chevron-left" size={16}/> 이전</button>
             <button className="btn-danger" onClick={() => markKnown(current, false)} style={{ padding: '10px 16px' }} aria-label="모름 표시"><Icon name="x" size={16}/> 모름</button>
-            <span className="flashcard-counter" aria-live="polite">{idxInRange + 1} / {cards.length}</span>
+            <span className="flashcard-counter" aria-live="polite">{idx + 1} / {cards.length}</span>
             <button className="btn-success" onClick={() => { markKnown(current, true); next(); }} style={{ padding: '10px 16px' }} aria-label="외움 표시"><Icon name="check" size={16}/> 외움</button>
-            <button className="btn-outline" onClick={next} disabled={idxInRange === cards.length - 1} aria-label="다음 카드">다음 <Icon name="chevron-right" size={16}/></button>
+            <button className="btn-outline" onClick={next} disabled={idx === cards.length - 1} aria-label="다음 카드">다음 <Icon name="chevron-right" size={16}/></button>
           </div>
         </>
       ) : null}

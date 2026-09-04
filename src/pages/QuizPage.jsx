@@ -31,7 +31,12 @@ import {
   withQuizResult,
 } from '../domain/grading';
 import { useThemeContext } from '../hooks/useTheme';
-import { useDeepLinkId, useDeepLinkedIndex, deckDeepLinkNotice } from '../hooks/useDeepLink';
+import {
+  useDeepLinkId,
+  useDeepLinkedIndex,
+  deckDeepLinkNotice,
+  DEEP_LINK_NOTICE_STYLE,
+} from '../hooks/useDeepLink';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
 const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', sql: 'SQL' };
@@ -41,17 +46,6 @@ const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', s
 // AI 변형 문항이면 `toAiSource` 가 null 을 주고 패널이 통째로 사라진다 —
 // 서버 guard 의 ID_PATTERN 이 변형 id 를 거절해 400 이 나기 때문이다.
 const quizItem = (problem) => ({ source: 'quiz', generated: problem?.generated, id: problem?.id });
-
-/** 딥링크 안내 배너 — 함정 안내와 같은 결(경고 톤)로 맞춘다 */
-const NOTICE_STYLE = {
-  margin: '12px 0',
-  padding: '10px 14px',
-  borderRadius: 8,
-  fontSize: '0.9rem',
-  background: 'rgba(251,191,36,0.1)',
-  border: '1px solid var(--warning)',
-  color: 'var(--text)',
-};
 
 const SELF_GRADE_STATE = {
   [QUIZ_RESULT.CORRECT]: '정답으로 기록됨',
@@ -201,7 +195,7 @@ export default function QuizPage() {
       {/* 지목받은 문항을 못 찾았을 때. 조용히 다른 문항을 열면 사용자는
           계획이 틀렸는지 앱이 틀렸는지 알 수 없다. */}
       {deepLinkNotice && (
-        <div className="deep-link-notice" role="status" style={NOTICE_STYLE}>
+        <div className="deep-link-notice" role="status" style={DEEP_LINK_NOTICE_STYLE}>
           {deepLinkNotice}
         </div>
       )}
