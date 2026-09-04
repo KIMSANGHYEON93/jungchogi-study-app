@@ -274,6 +274,75 @@ describe('gradeAnswer — 원장 기록', () => {
   });
 });
 
+describe('서버가 실제로 보내는 payload 와의 계약', () => {
+  // lib/ai/usage.js 의 toCostPayload 가 만드는 실제 모양으로 확인한다.
+  // 계약 12필드에 CostBreakdown 의 부가 필드(usd·known·warning...)가 더 붙어 오는데,
+  // 원장은 계약 필드만 담고 나머지는 버려야 한다.
+  it('서버 payload 를 그대로 넣으면 계약 12필드만 남는다', async () => {
+    const { buildUsageRecord, toCostPayload } = await import('../lib/ai/usage.js');
+    const built = buildUsageRecord({
+      endpoint: 'tutor',
+      model: 'claude-opus-5',
+      effort: 'medium',
+      usage: {
+        input_tokens: 1000,
+        output_tokens: 500,
+        cache_read_input_tokens: 3000,
+        cache_creation_input_tokens: 0,
+      },
+      latencyMs: 8000,
+      ok: true,
+      errorCode: null,
+    });
+    const payload = toCostPayload(built.record, built.cost);
+
+    fetchMock.mockResolvedValue(sseResponse([frame({ done: true, cost: payload })]));
+    await streamTutor(TUTOR_REQUEST);
+
+    const entry = getUsageEntries()[0];
+    expect(entry).toEqual({
+      ts: payload.ts,
+      endpoint: 'tutor',
+      model: 'claude-opus-5',
+      effort: 'medium',
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 3000,
+      cacheCreationTokens: 0,
+      costUsd: payload.costUsd,
+      latencyMs: 8000,
+      ok: true,
+      errorCode: null,
+    });
+    // 부가 필드는 원장에 담지 않는다
+    expect(entry).not.toHaveProperty('usd');
+    expect(entry).not.toHaveProperty('pricingAsOf');
+  });
+
+  it('usage 를 모르면 총액도 토큰도 0 으로 담는다 — 지어내지 않는다', async () => {
+    const { buildUsageRecord, toCostPayload } = await import('../lib/ai/usage.js');
+    const built = buildUsageRecord({
+      endpoint: 'grade',
+      model: 'claude-opus-5',
+      usage: null,
+      ok: false,
+      errorCode: 'UPSTREAM',
+    });
+    const payload = toCostPayload(built.record, built.cost);
+
+    fetchMock.mockResolvedValue(jsonResponse({ verdict: 'correct', cost: payload }));
+    await gradeAnswer(GRADE_REQUEST);
+
+    expect(getUsageEntries()[0]).toMatchObject({
+      endpoint: 'grade',
+      costUsd: 0,
+      inputTokens: 0,
+      ok: false,
+      errorCode: 'UPSTREAM',
+    });
+  });
+});
+
 describe('원장 기록 실패는 학습 흐름을 막지 않는다', () => {
   it('recordUsage 가 던져도 해설은 끝까지 온다', async () => {
     vi.mocked(recordUsage).mockImplementationOnce(() => {
