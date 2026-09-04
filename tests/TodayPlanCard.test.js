@@ -155,7 +155,9 @@ describe('TodayPlanCard — 저장된 계획', () => {
     const { container, unmount } = render();
 
     const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'));
-    expect(hrefs).toContain('/wrong');
+    // 오답 복습 항목은 `ids: ['042']` 를 들고 있으므로 그 문항까지 연다.
+    // 화면 단위(`/wrong`)로 떨어지는 건 ids 가 빈 항목뿐이다 — studyPlan.test.js 참조.
+    expect(hrefs).toContain('/wrong?id=042');
     expect(hrefs).toContain('/study?day=6');
     unmount();
   });

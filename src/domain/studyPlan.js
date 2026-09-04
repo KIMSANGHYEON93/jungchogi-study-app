@@ -336,10 +336,44 @@ export function planItemTitle(item) {
 }
 
 /**
+ * 계획 항목이 가리키는 첫 문항 id.
+ *
+ * 계획 한 항목에 문항이 여러 개 들어와도 링크는 하나다 — 첫 문항을 열어 주면
+ * 나머지는 그 화면에서 이어 풀 수 있다. 빈 문자열은 id 로 보지 않는다
+ * (`?id=` 로 나가면 화면이 빈 값을 찾다가 폴백만 돈다).
+ * @param {PlanItem} item
+ * @returns {string} 없으면 빈 문자열
+ */
+function firstItemId(item) {
+  const ids = Array.isArray(item?.ids) ? item.ids : [];
+  const first = ids.find((id) => typeof id === 'string' && id !== '');
+  return first ?? '';
+}
+
+/**
+ * 화면 링크에 문항 파라미터를 붙인다.
+ *
+ * 계약은 `?id=<id>` 로 고정이다 — QuizPage·FlashcardPage·WrongNotePage 가 이 이름을 읽는다.
+ * id 는 모델이 낸 값이라 계약 밖 문자가 섞일 수 있으므로 반드시 인코딩한다.
+ * 그대로 붙이면 `&` 하나로 쿼리가 갈라져 엉뚱한 파라미터가 생긴다.
+ * @param {string} to
+ * @param {string} id
+ * @returns {string}
+ */
+function withItemId(to, id) {
+  return id ? `${to}?id=${encodeURIComponent(id)}` : to;
+}
+
+/**
  * 계획 항목에서 이어갈 학습 화면.
  *
- * 각 페이지는 URL 파라미터를 하나씩만 읽는다(`/study?day=`, `/search?q=`).
- * 문항 단위(`ids`)로 바로 여는 경로는 없어서 화면 단위까지만 잇는다.
+ * 계획 항목의 `ids` 가 있으면 그 첫 문항까지 연다(`/quiz?id=`·`/flashcard?id=`·`/wrong?id=`).
+ * 비어 있으면 예전처럼 화면 단위(`/quiz`·`/flashcard`·`/wrong`)로 떨어진다.
+ * Day 학습은 문항이 아니라 문서라 지금처럼 `/study?day=`·`/search?q=` 를 쓴다.
+ *
+ * **변형 id(`042-v1`)도 그대로 넘긴다.** 교재에 없는 id 라 화면이 못 찾을 수 있지만,
+ * 그때 첫 문항으로 떨어뜨리는 것은 화면의 몫이다. 여기서 걸러 버리면 변형을 낸
+ * 계획 항목이 영영 문항 단위로 이어지지 못한다.
  *
  * @param {PlanItem} item
  * @returns {{to: string, label: string}|null} 이어갈 화면이 없으면 null
@@ -347,7 +381,7 @@ export function planItemTitle(item) {
 export function planItemLink(item) {
   switch (item?.type) {
     case 'review_wrong':
-      return { to: '/wrong', label: '오답노트' };
+      return { to: withItemId('/wrong', firstItemId(item)), label: '오답노트' };
     case 'study_day':
       if (Number.isFinite(item.day)) {
         return { to: `/study?day=${item.day}`, label: `Day ${item.day} 학습노트` };
@@ -359,8 +393,11 @@ export function planItemLink(item) {
         };
       }
       return null;
-    case 'drill':
-      return SOURCE_ROUTES[item.source] ?? null;
+    case 'drill': {
+      const route = SOURCE_ROUTES[item.source];
+      if (!route) return null;
+      return { to: withItemId(route.to, firstItemId(item)), label: route.label };
+    }
     default:
       return null;
   }

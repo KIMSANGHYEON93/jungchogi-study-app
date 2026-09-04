@@ -371,22 +371,70 @@ describe('planItemTitle / planItemLink', () => {
     });
   });
 
-  it('오답 복습은 오답노트로 이어진다', () => {
+  // 문항 딥링크 계약 — `?id=<id>`. 화면 세 곳이 이 파라미터를 읽는다.
+  // 계획이 "042 를 복습하라"고 해 놓고 목록의 첫 문항을 여는 것은 계획을 반쯤만
+  // 이어 주는 것이다. `ids` 가 비었을 때만 화면 단위로 떨어진다.
+
+  it('오답 복습은 첫 문항을 연 오답노트로 이어진다', () => {
     expect(planItemLink({ type: 'review_wrong', ids: ['042'] })).toEqual({
-      to: '/wrong',
+      to: '/wrong?id=042',
       label: '오답노트',
     });
   });
 
-  it('드릴은 출처에 맞는 화면으로 이어진다', () => {
+  it('ids 가 여럿이면 첫 문항만 연다 — 나머지는 그 화면에서 이어 푼다', () => {
+    expect(planItemLink({ type: 'review_wrong', ids: ['042', '077'] }).to).toBe('/wrong?id=042');
+  });
+
+  it('ids 가 비어 있으면 화면 단위 링크로 떨어진다', () => {
+    expect(planItemLink({ type: 'review_wrong', ids: [] })).toEqual({
+      to: '/wrong',
+      label: '오답노트',
+    });
+    expect(planItemLink({ type: 'review_wrong' }).to).toBe('/wrong');
+    // 빈 문자열은 id 가 아니다 — `?id=` 로 나가면 화면이 빈 값을 찾는다
+    expect(planItemLink({ type: 'review_wrong', ids: [''] }).to).toBe('/wrong');
+  });
+
+  it('드릴은 출처에 맞는 화면의 그 문항으로 이어진다', () => {
+    expect(planItemLink({ type: 'drill', source: 'codedrill', ids: ['C-01'] }).to).toBe(
+      '/quiz?id=C-01'
+    );
+    expect(planItemLink({ type: 'drill', source: 'quiz100', ids: ['042'] }).to).toBe(
+      '/flashcard?id=042'
+    );
+    expect(planItemLink({ type: 'drill', source: 'bogang', ids: ['B07'] }).to).toBe(
+      '/flashcard?id=B07'
+    );
+  });
+
+  it('ids 가 없는 드릴은 예전처럼 화면 단위로 이어진다', () => {
     expect(planItemLink({ type: 'drill', source: 'codedrill' }).to).toBe('/quiz');
     expect(planItemLink({ type: 'drill', source: 'quiz100' }).to).toBe('/flashcard');
     expect(planItemLink({ type: 'drill', source: 'bogang' }).to).toBe('/flashcard');
   });
 
+  it('변형 id 도 그대로 실어 보낸다', () => {
+    // 교재에 없는 id 라 화면이 못 찾을 수 있다. 그 처리는 화면 몫이고,
+    // 여기서 걸러 버리면 변형을 낸 계획이 영영 첫 문항으로만 이어진다.
+    expect(planItemLink({ type: 'drill', source: 'quiz100', ids: ['042-v1'] }).to).toBe(
+      '/flashcard?id=042-v1'
+    );
+    expect(planItemLink({ type: 'review_wrong', ids: ['C-01-v2'] }).to).toBe('/wrong?id=C-01-v2');
+  });
+
+  it('id 를 URL 에 안전하게 실어 보낸다', () => {
+    // 모델이 낸 값이라 계약 밖 문자가 섞일 수 있다. 그대로 붙이면 쿼리가 갈라진다.
+    expect(planItemLink({ type: 'review_wrong', ids: ['a&b=c'] }).to).toBe(
+      `/wrong?id=${encodeURIComponent('a&b=c')}`
+    );
+  });
+
   it('이어갈 화면을 못 찾으면 null 이다', () => {
     expect(planItemLink({ type: '알 수 없음' })).toBeNull();
     expect(planItemLink({ type: 'drill' })).toBeNull();
+    // 출처를 모르면 id 가 있어도 열 화면이 없다
+    expect(planItemLink({ type: 'drill', ids: ['C-01'] })).toBeNull();
   });
 });
 
