@@ -31,6 +31,7 @@ import {
   withQuizResult,
 } from '../domain/grading';
 import { useThemeContext } from '../hooks/useTheme';
+import { useDeepLinkId, useDeepLinkedIndex, deckDeepLinkNotice } from '../hooks/useDeepLink';
 
 const LANGS = ['전체', 'c', 'java', 'python', 'sql'];
 const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', sql: 'SQL' };
@@ -41,6 +42,17 @@ const LANG_LABEL = { 전체: '전체', c: 'C', java: 'Java', python: 'Python', s
 // 서버 guard 의 ID_PATTERN 이 변형 id 를 거절해 400 이 나기 때문이다.
 const quizItem = (problem) => ({ source: 'quiz', generated: problem?.generated, id: problem?.id });
 
+/** 딥링크 안내 배너 — 함정 안내와 같은 결(경고 톤)로 맞춘다 */
+const NOTICE_STYLE = {
+  margin: '12px 0',
+  padding: '10px 14px',
+  borderRadius: 8,
+  fontSize: '0.9rem',
+  background: 'rgba(251,191,36,0.1)',
+  border: '1px solid var(--warning)',
+  color: 'var(--text)',
+};
+
 const SELF_GRADE_STATE = {
   [QUIZ_RESULT.CORRECT]: '정답으로 기록됨',
   [QUIZ_RESULT.INCORRECT]: '오답으로 기록됨',
@@ -50,8 +62,9 @@ export default function QuizPage() {
   useStudyTimer();
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
+  // `/quiz?id=C-07` 로 지목받은 문항. 첫 렌더에만 읽는다.
+  const requestedId = useDeepLinkId();
   const [allProblems, setAllProblems] = useState([]);
-  const [idx, setIdx] = useState(0);
   const [lang, setLang] = useState('전체');
   const [userAnswer, setUserAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -80,7 +93,11 @@ export default function QuizPage() {
 
   // lang 필터는 파생 상태 — effect 없이 렌더 중 계산한다
   const problems = lang === '전체' ? allProblems : allProblems.filter((p) => p.lang === lang);
+  // 문항 커서. 딥링크가 지목한 문항이 목록에 있으면 거기서 시작한다.
+  // 목록은 md fetch 뒤에 도착하므로 커서를 렌더 중에 파생해야 effect 없이 맞출 수 있다.
+  const { index: idx, setIndex, missedId } = useDeepLinkedIndex(problems, requestedId);
   const current = problems[idx];
+  const deepLinkNotice = deckDeepLinkNotice(missedId, { variantsOff: !includeVariants });
 
   // 변형 문항의 진도는 교재 진도와 **다른 키**에 쌓는다.
   // `quiz_results` 에는 분모가 40 으로 고정된 진도(대시보드 `quizDone/40`,
@@ -125,7 +142,7 @@ export default function QuizPage() {
   };
 
   const goTo = (newIdx) => {
-    setIdx(newIdx);
+    setIndex(newIdx);
     setUserAnswer('');
     setSubmitted(false);
   };
@@ -180,6 +197,14 @@ export default function QuizPage() {
           onChange={(next) => { changeIncludeVariants(next); goTo(0); }}
         />
       </div>
+
+      {/* 지목받은 문항을 못 찾았을 때. 조용히 다른 문항을 열면 사용자는
+          계획이 틀렸는지 앱이 틀렸는지 알 수 없다. */}
+      {deepLinkNotice && (
+        <div className="deep-link-notice" role="status" style={NOTICE_STYLE}>
+          {deepLinkNotice}
+        </div>
+      )}
 
       {problems.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>문제를 불러오는 중...</div>
