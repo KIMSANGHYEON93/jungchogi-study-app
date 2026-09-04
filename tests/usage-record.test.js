@@ -13,7 +13,12 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { buildUsageRecord, logUsage, USAGE_RECORD_FIELDS } from '../lib/ai/usage.js';
+import {
+  buildUsageRecord,
+  logUsage,
+  toCostPayload,
+  USAGE_RECORD_FIELDS,
+} from '../lib/ai/usage.js';
 
 const USAGE = {
   input_tokens: 1_000,
@@ -239,5 +244,63 @@ describe('logUsage — 기계가 파싱할 한 줄', () => {
     logUsage(record, cost);
 
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('toCostPayload — 응답에 싣는 cost 객체', () => {
+  it('계약된 열두 필드를 그대로 담는다 (프론트 원장이 이 이름으로 읽는다)', () => {
+    const { record, cost } = buildUsageRecord(args());
+    const payload = toCostPayload(record, cost);
+
+    for (const field of USAGE_RECORD_FIELDS) {
+      expect(payload[field]).toEqual(record[field]);
+    }
+  });
+
+  it('토큰 수를 함께 실어 원장이 다시 계산하지 않아도 되게 한다', () => {
+    const payload = toCostPayload(...Object.values(buildUsageRecord(args())));
+    expect(payload.inputTokens).toBe(1_000);
+    expect(payload.outputTokens).toBe(500);
+    expect(payload.cacheReadTokens).toBe(10_000);
+    expect(payload.cacheCreationTokens).toBe(2_000);
+  });
+
+  it('가격 판단의 근거를 함께 싣는다', () => {
+    const { record, cost } = buildUsageRecord(args());
+    const payload = toCostPayload(record, cost);
+
+    expect(payload).toMatchObject({
+      usd: 0.035,
+      usdAtLeast: 0.035,
+      known: true,
+      unknownFields: [],
+      batch: false,
+      pricingAsOf: '2026-06',
+      warning: null,
+    });
+  });
+
+  it('usd 와 costUsd 는 같은 값이다 (이름만 둘)', () => {
+    const { record, cost } = buildUsageRecord(args());
+    const payload = toCostPayload(record, cost);
+    expect(payload.usd).toBe(payload.costUsd);
+  });
+
+  it('총액을 모르면 두 이름 모두 null 이고 하한만 값이 있다', () => {
+    const { record, cost } = buildUsageRecord(args({ usage: { input_tokens: 1_000 } }));
+    const payload = toCostPayload(record, cost);
+
+    expect(payload.costUsd).toBeNull();
+    expect(payload.usd).toBeNull();
+    expect(payload.usdAtLeast).toBe(0.005);
+    expect(payload.warning).toBe('PARTIAL_USAGE');
+  });
+
+  it('여기에도 개인 학습 데이터는 없다', () => {
+    const { record, cost } = buildUsageRecord(args());
+    const serialized = JSON.stringify(toCostPayload(record, cost));
+
+    expect(serialized).not.toContain('quiz100');
+    expect(serialized).not.toContain('정규화');
   });
 });

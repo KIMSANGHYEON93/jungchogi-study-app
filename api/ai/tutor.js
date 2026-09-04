@@ -5,7 +5,9 @@
 //           `AI_ACCESS_CODE` 가 설정된 경우에만 `x-access-code` 헤더 필요
 //   성공  : 200 text/event-stream
 //             data: {"delta":"..."}\n\n            ← 0회 이상
-//             data: {"done":true,"usage":{...}}\n\n ← 마지막 1회
+//             data: {"done":true,"usage":{...},"cost":{...}}\n\n ← 마지막 1회
+//           `cost` 는 Phase 5 에서 **더한** 필드다 (기존 필드는 그대로).
+//           모양은 `lib/ai/usage.js` 의 toCostPayload — 사용 기록 12필드 + 가격 근거.
 //   실패  : JSON { "error": { "code", "message" } }
 //             401 UNAUTHORIZED / 429 RATE_LIMITED / 400 BAD_REQUEST / 502 UPSTREAM
 //           스트림이 시작된 뒤의 오류는 SSE 프레임으로:
@@ -38,7 +40,7 @@ import {
   readDataFile,
   CACHE_PREFIX_FILE,
 } from '../../lib/ai/content.js';
-import { buildUsageRecord, logUsage } from '../../lib/ai/usage.js';
+import { buildUsageRecord, logUsage, toCostPayload } from '../../lib/ai/usage.js';
 
 /**
  * 시스템 프롬프트. **모든 요청에서 바이트 단위로 같아야 한다** —
@@ -245,7 +247,8 @@ export async function POST(request) {
       errorCode,
     });
     logUsage(built.record, built.cost);
-    return built.cost;
+    // 응답에는 기록 전체 + 가격 근거를 싣는다 — 프론트 원장이 계약된 이름으로 읽는다.
+    return toCostPayload(built.record, built.cost);
   };
 
   let iterator;

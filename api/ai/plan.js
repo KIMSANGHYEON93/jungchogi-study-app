@@ -6,7 +6,9 @@
 //   성공  : 200 text/event-stream
 //             data: {"phase":"tool","tool":"search_content","input":{...}}\n\n
 //             data: {"phase":"tool_result","tool":"search_content","ok":true}\n\n
-//             data: {"done":true,"plan":{...},"usage":{...}}\n\n   ← 마지막 1회
+//             data: {"done":true,"plan":{...},"usage":{...},"cost":{...}}\n\n   ← 마지막 1회
+//           `cost` 는 Phase 5 에서 **더한** 필드다 (기존 필드는 그대로).
+//           모양은 `lib/ai/usage.js` 의 toCostPayload — 사용 기록 12필드 + 가격 근거.
 //   실패  : 스트림 시작 **전** → JSON { "error": { "code", "message" } }
 //             401 UNAUTHORIZED / 429 RATE_LIMITED / 400 BAD_REQUEST / 502 UPSTREAM
 //           스트림 시작 **후** → SSE 프레임 data: {"error":{...}}\n\n
@@ -31,7 +33,7 @@ import {
 } from '../../lib/ai/guard.js';
 import { readDataFile, CACHE_PREFIX_FILE } from '../../lib/ai/content.js';
 import { createPlannerTools, MAX_TOOL_CALLS } from '../../lib/ai/tools/index.js';
-import { buildUsageRecord, logUsage } from '../../lib/ai/usage.js';
+import { buildUsageRecord, logUsage, toCostPayload } from '../../lib/ai/usage.js';
 
 /**
  * 시스템 프롬프트. **모든 요청에서 바이트 단위로 같아야 한다** —
@@ -340,7 +342,8 @@ export async function POST(request) {
       errorCode,
     });
     logUsage(built.record, built.cost);
-    return built.cost;
+    // 응답에는 기록 전체 + 가격 근거를 싣는다 — 프론트 원장이 계약된 이름으로 읽는다.
+    return toCostPayload(built.record, built.cost);
   };
 
   // 5) 러너를 만들고 **첫 턴이 끝날 때까지** 기다린다.

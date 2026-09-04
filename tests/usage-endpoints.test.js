@@ -457,3 +457,50 @@ describe('자동 채점 — 응답 계약', () => {
     expect(usageLines()).toHaveLength(0); // 돈이 안 나간 요청은 비용 기록도 없다
   });
 });
+
+describe('응답의 cost 는 프론트 원장이 그대로 저장할 수 있는 모양이다', () => {
+  // src/utils/usageLedger.js 의 normalizeCostEntry 가 계약된 이름으로 읽는다.
+  // 비용만 보내면 원장의 토큰 항목이 전부 0 이 되므로 기록을 통째로 싣는다.
+  const contractFields = [...USAGE_RECORD_FIELDS];
+
+  it('tutor done 프레임의 cost 가 계약된 열두 필드를 갖는다', async () => {
+    const done = parseSse(await (await tutor.POST(tutorRequest())).text()).at(-1);
+
+    for (const field of contractFields) expect(done.cost).toHaveProperty(field);
+    expect(done.cost.endpoint).toBe('tutor');
+    expect(done.cost.costUsd).toBe(0.035);
+    expect(done.cost.inputTokens).toBe(1_000);
+    expect(done.cost.usd).toBe(done.cost.costUsd);
+  });
+
+  it('plan done 프레임의 cost 도 같은 모양이다', async () => {
+    const done = parseSse(await (await plan.POST(planRequest())).text()).at(-1);
+
+    for (const field of contractFields) expect(done.cost).toHaveProperty(field);
+    expect(done.cost.endpoint).toBe('plan');
+    expect(done.cost.effort).toBe('high');
+    expect(done.cost.outputTokens).toBe(500);
+  });
+
+  it('grade 응답의 cost 도 같은 모양이다', async () => {
+    const body = await (await grade.POST(gradeRequest())).json();
+
+    for (const field of contractFields) expect(body.cost).toHaveProperty(field);
+    expect(body.cost.endpoint).toBe('grade');
+    expect(body.cost.effort).toBe('medium');
+    expect(body.cost.cacheReadTokens).toBe(10_000);
+  });
+
+  it('cost 는 로그에 남은 기록과 같은 값을 담는다', async () => {
+    const done = parseSse(await (await tutor.POST(tutorRequest())).text()).at(-1);
+    const record = onlyUsageRecord();
+
+    for (const field of contractFields) expect(done.cost[field]).toEqual(record[field]);
+  });
+
+  it('cost 에도 개인 학습 데이터가 없다', async () => {
+    const done = parseSse(await (await tutor.POST(tutorRequest())).text()).at(-1);
+    expect(JSON.stringify(done.cost)).not.toContain(SECRET_ANSWER);
+    expect(JSON.stringify(done.cost)).not.toContain('quiz100');
+  });
+});
