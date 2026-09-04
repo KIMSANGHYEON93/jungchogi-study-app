@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
 import WrongNotePage from '../src/pages/WrongNotePage.jsx';
 import { saveProgress } from '../src/utils/storage.js';
 
@@ -37,7 +38,8 @@ function render() {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(createElement(WrongNotePage)));
+  // 이 화면은 `?id=` 딥링크를 읽으므로 Router 안에서만 그려진다
+  act(() => root.render(createElement(MemoryRouter, null, createElement(WrongNotePage))));
   return {
     container,
     unmount: () => {

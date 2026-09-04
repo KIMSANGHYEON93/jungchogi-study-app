@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
@@ -9,21 +9,49 @@ import AiExplainPanel from '../components/AiExplainPanel';
 import GeneratedBadge, { GeneratedAnswerNotice } from '../components/GeneratedBadge';
 import { toAiSource } from '../domain/aiSource';
 import { useThemeContext } from '../hooks/useTheme';
+import { useDeepLinkId, formatDeepLinkId, DEEP_LINK_NOTICE_STYLE } from '../hooks/useDeepLink';
 
 const SOURCE_LABEL = { quiz: '코드퀴즈', exam: '모의고사' };
 const FILTER_OPTIONS = ['전체', '코드퀴즈', '모의고사', '미복습', '복습완료'];
 
+// 오답 하나를 가리키는 키. 같은 id 가 코드퀴즈·모의고사 양쪽에 있을 수 있다.
+const noteKey = (note) => `${note.source}_${note.id}`;
+
 export default function WrongNotePage() {
   const { theme } = useThemeContext();
   const syntaxTheme = theme === 'dark' ? oneDark : oneLight;
+  // `/wrong?id=C-07` 로 지목받은 오답. 첫 렌더에만 읽는다.
+  const requestedId = useDeepLinkId();
   const [notes, setNotes] = useState(getWrongNotes);
   const [filter, setFilter] = useState('전체');
-  const [expandedId, setExpandedId] = useState(null);
+  // 목록이 localStorage 에서 바로 오므로 첫 렌더에서 대상을 정할 수 있다 —
+  // effect 로 맞출 일이 없어 set-state-in-effect 가 생기지 않는다.
+  // 계약(`?id=`)에 출처가 없으므로 id 가 같은 첫 오답을 연다.
+  const [deepLinkKey] = useState(() => {
+    const target = requestedId ? notes.find((n) => n.id === requestedId) : null;
+    return target ? noteKey(target) : null;
+  });
+  const [expandedId, setExpandedId] = useState(deepLinkKey);
+  // 첫 렌더 시점에 고정한다. 뒤에 사용자가 그 오답을 지웠다고 안내가 뜨면 안 된다.
+  const [missedId] = useState(() => (requestedId !== null && deepLinkKey === null ? requestedId : null));
+  const deepLinkRef = useRef(null);
   const [retryMode, setRetryMode] = useState(null); // { source, id }
   const [retryAnswer, setRetryAnswer] = useState('');
   const [retrySubmitted, setRetrySubmitted] = useState(false);
 
   const reload = useCallback(() => setNotes(getWrongNotes()), []);
+
+  // 지목받은 카드가 목록 아래쪽이면 펼쳐도 화면 밖이다. 첫 렌더 뒤 한 번만 끌어온다 —
+  // 이후 사용자가 다른 카드를 펼칠 때 스크롤을 가로채지 않는다.
+  useEffect(() => {
+    const el = deepLinkRef.current;
+    // 구현이 없는 환경(jsdom 등)에서는 건너뛴다
+    if (typeof el?.scrollIntoView === 'function') el.scrollIntoView({ block: 'center' });
+  }, []);
+
+  const deepLinkNotice = missedId
+    ? `URL 이 지정한 ${formatDeepLinkId(missedId)} 문항을 오답노트에서 찾지 못했습니다. 이미 지웠거나 다른 화면의 문항일 수 있습니다.`
+    : '';
 
   const filtered = notes.filter((n) => {
     if (filter === '코드퀴즈') return n.source === 'quiz';
@@ -98,6 +126,14 @@ export default function WrongNotePage() {
         )}
       </div>
 
+      {/* 지목받은 오답을 못 찾았을 때. 아무 카드도 펼치지 않으므로 이유를 말해 주지 않으면
+          사용자는 링크가 죽은 것인지 화면이 고장난 것인지 알 수 없다. */}
+      {deepLinkNotice && (
+        <div className="deep-link-notice" role="status" style={DEEP_LINK_NOTICE_STYLE}>
+          {deepLinkNotice}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 60 }}>
           <div style={{ marginBottom: 16, color: 'var(--text-dim)' }}>
@@ -111,12 +147,17 @@ export default function WrongNotePage() {
         </div>
       ) : (
         filtered.map((note) => {
-          const key = `${note.source}_${note.id}`;
+          const key = noteKey(note);
           const isExpanded = expandedId === key;
           const isRetrying = retryMode?.source === note.source && retryMode?.id === note.id;
 
           return (
-            <div key={key} className="card wrong-note-card" style={{ marginBottom: 12 }}>
+            <div
+              key={key}
+              ref={key === deepLinkKey ? deepLinkRef : null}
+              className="card wrong-note-card"
+              style={{ marginBottom: 12 }}
+            >
               {/* Header */}
               <div
                 className="wrong-note-header"
