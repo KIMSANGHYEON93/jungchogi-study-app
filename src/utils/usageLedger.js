@@ -166,7 +166,11 @@ export function normalizeCostEntry(cost, context = {}) {
     outputTokens: toCount(cost.outputTokens),
     cacheReadTokens: toCount(cost.cacheReadTokens),
     cacheCreationTokens: toCount(cost.cacheCreationTokens),
-    costUsd: toCount(cost.costUsd),
+    // `costUsd` 가 계약이다. `usd` 는 호환용 읽기 — 2026-09-04 현재 `api/ai/*` 가
+    // 이 자리에 `lib/ai/usage.js` 의 CostBreakdown({usd, known, model, ...})을 싣고 있어
+    // 계약대로만 읽으면 모든 호출이 $0 으로 기록된다. 계약이 맞춰지면 이 갈래는 안 쓰인다.
+    // `usdAtLeast`(아는 항목만 더한 하한)는 읽지 않는다 — 하한을 총액으로 보이게 하면 안 된다.
+    costUsd: cost.costUsd === undefined ? toCount(cost.usd) : toCount(cost.costUsd),
     latencyMs: toNullableCount(cost.latencyMs),
     // 명시적으로 false 일 때만 실패로 본다. 계약 밖 값("false", 0)은 판단 근거가 못 된다.
     ok: cost.ok !== false,

@@ -215,6 +215,42 @@ describe('normalizeCostEntry — 모르는 미래 필드', () => {
   });
 });
 
+describe('normalizeCostEntry — 서버가 총액만 다른 이름으로 보낼 때', () => {
+  // 2026-09-04 현재 api/ai/* 는 `cost` 자리에 lib/ai/usage.js 의 CostBreakdown
+  // ({usd, known, model, pricingAsOf, ...})을 싣는다. 계약이 정한 UsageRecord 와
+  // 이름이 다르다. 계약이 맞춰지기 전까지 총액만이라도 잃지 않는다.
+  it('costUsd 가 없고 usd 만 있으면 총액으로 읽는다', () => {
+    const entry = normalizeCostEntry(
+      { usd: 0.035, known: true, model: 'claude-opus-5', pricingAsOf: '2026-06' },
+      { endpoint: 'tutor' }
+    );
+    expect(entry.costUsd).toBe(0.035);
+    expect(entry.model).toBe('claude-opus-5');
+    expect(entry.endpoint).toBe('tutor');
+  });
+
+  it('costUsd 가 있으면 그쪽이 이긴다', () => {
+    expect(normalizeCostEntry({ costUsd: 0.01, usd: 9.99 }, {}).costUsd).toBe(0.01);
+  });
+
+  it('총액을 모르면(null) 0 이다 — 지어내지 않는다', () => {
+    expect(normalizeCostEntry({ usd: null, known: false, warning: 'NO_USAGE' }, {}).costUsd).toBe(0);
+  });
+
+  it('usdAtLeast 는 총액으로 쓰지 않는다 — 하한을 청구액처럼 보이게 하면 안 된다', () => {
+    expect(normalizeCostEntry({ usd: null, usdAtLeast: 0.02 }, {}).costUsd).toBe(0);
+  });
+
+  it('토큰 항목이 null(모름)이면 0 으로 센다', () => {
+    const entry = normalizeCostEntry(
+      { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null },
+      {}
+    );
+    expect(entry.inputTokens).toBe(0);
+    expect(entry.cacheReadTokens).toBe(0);
+  });
+});
+
 describe('recordUsage', () => {
   it('cost 가 없으면 아무것도 남기지 않는다 — "기록 없음"이 정상 상태다', () => {
     expect(recordUsage(undefined, { endpoint: 'tutor' })).toBe(false);
