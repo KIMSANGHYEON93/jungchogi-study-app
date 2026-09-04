@@ -83,7 +83,7 @@ describe('normalizeCostEntry — cost 가 없거나 망가진 경우', () => {
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheCreationTokens: 0,
-      costUsd: 0,
+      costUsd: null,
       latencyMs: null,
       ok: true,
       errorCode: null,
@@ -138,7 +138,7 @@ describe('normalizeCostEntry — 부분 필드 / 타입 어긋남', () => {
     );
     expect(entry.inputTokens).toBe(0);
     expect(entry.outputTokens).toBe(0);
-    expect(entry.costUsd).toBe(0);
+    expect(entry.costUsd).toBeNull();
   });
 
   it('음수·NaN·Infinity 는 0 으로 접는다 — 합계를 조용히 깎으면 안 된다', () => {
@@ -148,7 +148,7 @@ describe('normalizeCostEntry — 부분 필드 / 타입 어긋남', () => {
     );
     expect(entry.inputTokens).toBe(0);
     expect(entry.outputTokens).toBe(0);
-    expect(entry.costUsd).toBe(0);
+    expect(entry.costUsd).toBeNull();
     expect(entry.cacheReadTokens).toBe(0);
   });
 
@@ -233,12 +233,12 @@ describe('normalizeCostEntry — 서버가 총액만 다른 이름으로 보낼 
     expect(normalizeCostEntry({ costUsd: 0.01, usd: 9.99 }, {}).costUsd).toBe(0.01);
   });
 
-  it('총액을 모르면(null) 0 이다 — 지어내지 않는다', () => {
-    expect(normalizeCostEntry({ usd: null, known: false, warning: 'NO_USAGE' }, {}).costUsd).toBe(0);
+  it('총액을 모르면(null) 그대로 null 이다 — 0 으로 접으면 총액이 과소 집계된다', () => {
+    expect(normalizeCostEntry({ usd: null, known: false, warning: 'NO_USAGE' }, {}).costUsd).toBeNull();
   });
 
   it('usdAtLeast 는 총액으로 쓰지 않는다 — 하한을 청구액처럼 보이게 하면 안 된다', () => {
-    expect(normalizeCostEntry({ usd: null, usdAtLeast: 0.02 }, {}).costUsd).toBe(0);
+    expect(normalizeCostEntry({ usd: null, usdAtLeast: 0.02 }, {}).costUsd).toBeNull();
   });
 
   it('토큰 항목이 null(모름)이면 0 으로 센다', () => {

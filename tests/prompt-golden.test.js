@@ -66,7 +66,7 @@ const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/ai-data', import.meta.url)
  * 갱신 절차는 파일 상단 주석 참조.
  */
 const GOLDEN = {
-  tutor: { length: 458, sha256: '41d7e1e03ac96ed9c060b47f4b40848dee286aaa0d83eb6ff87dc3d87c04d529' },
+  tutor: { length: 689, sha256: 'f17eff8672b20d5fe44c91ece8e121282a350a9dc71ded7ddffcc20ac15f0523' },
   grade: { length: 2137, sha256: '51581fa338bbfd473debc06038d25101bd91f306790ce61ed0ef53db545bb9ec' },
   plan: { length: 851, sha256: '52390511e20cef2f4336c38953c2cf0ac5930bcfc0cf5064cafdcefecc560e44' },
   variantsShort: {

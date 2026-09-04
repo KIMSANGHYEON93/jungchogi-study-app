@@ -259,3 +259,22 @@ describe('손상된 원장', () => {
     expect(view.container.textContent).toContain('아직 AI 기능을 사용한 기록이 없습니다');
   });
 });
+
+describe('비용을 모르는 호출이 섞였을 때', () => {
+  // 서버는 토큰을 하나라도 모르면 costUsd 를 null 로 보낸다(lib/ai/usage.js).
+  // 그런 호출을 0 으로 세면 화면의 총액이 실제보다 작게 보인다 — "이상"으로 표시해야 한다.
+  it('총액을 하한으로 표시하고 미상 건수를 알린다', () => {
+    recordUsage(cost({ costUsd: 0.01 }), { endpoint: 'tutor' });
+    recordUsage(cost({ costUsd: null }), { endpoint: 'tutor' });
+    view = render();
+    expect(view.container.textContent).toContain('이상');
+    expect(view.container.textContent).toContain('1회는 비용 미상');
+  });
+
+  it('전부 아는 값이면 "이상"을 붙이지 않는다', () => {
+    recordUsage(cost({ costUsd: 0.01 }), { endpoint: 'tutor' });
+    view = render();
+    expect(view.container.textContent).not.toContain('이상');
+    expect(view.container.textContent).not.toContain('비용 미상');
+  });
+});

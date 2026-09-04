@@ -319,7 +319,7 @@ describe('서버가 실제로 보내는 payload 와의 계약', () => {
     expect(entry).not.toHaveProperty('pricingAsOf');
   });
 
-  it('usage 를 모르면 총액도 토큰도 0 으로 담는다 — 지어내지 않는다', async () => {
+  it('usage 를 모르면 토큰은 0, 총액은 null 로 담는다 — 지어내지 않는다', async () => {
     const { buildUsageRecord, toCostPayload } = await import('../lib/ai/usage.js');
     const built = buildUsageRecord({
       endpoint: 'grade',
@@ -335,7 +335,8 @@ describe('서버가 실제로 보내는 payload 와의 계약', () => {
 
     expect(getUsageEntries()[0]).toMatchObject({
       endpoint: 'grade',
-      costUsd: 0,
+      // 서버가 usage 를 못 받으면 총액은 null(모름)이다. 0 으로 접으면 과소 집계된다.
+      costUsd: null,
       inputTokens: 0,
       ok: false,
       errorCode: 'UPSTREAM',

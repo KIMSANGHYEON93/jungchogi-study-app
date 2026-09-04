@@ -74,7 +74,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * @property {number} outputTokens
  * @property {number} cacheReadTokens 캐시에서 읽은 입력 토큰
  * @property {number} cacheCreationTokens 캐시를 만드느라 쓴 입력 토큰
- * @property {number} costUsd 서버가 계산한 **추정** 비용
+ * @property {number|null} costUsd 서버가 계산한 **추정** 비용. 모르면 null (0 과 구분한다)
  * @property {number|null} latencyMs 읽을 수 없으면 null (0ms 와 구분한다)
  * @property {boolean} ok
  * @property {string|null} errorCode
@@ -91,7 +91,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * @property {number} outputTokens
  * @property {number} cacheReadTokens
  * @property {number} cacheCreationTokens
- * @property {number} costUsd
+ * @property {number} costUsd 비용을 아는 호출만 더한 값
+ * @property {number} unknownCostCalls 비용을 모르는 호출 수. >0 이면 costUsd 는 하한이다
  * @property {number|null} cacheHitRate 0~1. 입력 토큰이 하나도 없으면 null
  * @property {Record<string, UsageSummary>} byEndpoint 엔드포인트별 분해(중첩된 byEndpoint 는 비어 있다)
  */
@@ -166,11 +167,12 @@ export function normalizeCostEntry(cost, context = {}) {
     outputTokens: toCount(cost.outputTokens),
     cacheReadTokens: toCount(cost.cacheReadTokens),
     cacheCreationTokens: toCount(cost.cacheCreationTokens),
-    // `costUsd` 가 계약이다. `usd` 는 호환용 읽기 — 2026-09-04 현재 `api/ai/*` 가
-    // 이 자리에 `lib/ai/usage.js` 의 CostBreakdown({usd, known, model, ...})을 싣고 있어
-    // 계약대로만 읽으면 모든 호출이 $0 으로 기록된다. 계약이 맞춰지면 이 갈래는 안 쓰인다.
+    // `costUsd` 는 **number|null** 이다. 서버(`lib/ai/usage.js`)는 토큰을 하나라도 모르면
+    // 총액을 `null` 로 보낸다 — "모름"과 "$0"은 다른 상태다. 여기서 0 으로 접으면
+    // usage 를 못 받은 호출이 쌓일수록 사용자에게 보이는 총액이 조용히 과소 집계된다.
+    // `usd` 는 같은 값의 다른 이름(CostBreakdown 쪽)이라 호환용으로 함께 읽는다.
     // `usdAtLeast`(아는 항목만 더한 하한)는 읽지 않는다 — 하한을 총액으로 보이게 하면 안 된다.
-    costUsd: cost.costUsd === undefined ? toCount(cost.usd) : toCount(cost.costUsd),
+    costUsd: toNullableCount(cost.costUsd === undefined ? cost.usd : cost.costUsd),
     latencyMs: toNullableCount(cost.latencyMs),
     // 명시적으로 false 일 때만 실패로 본다. 계약 밖 값("false", 0)은 판단 근거가 못 된다.
     ok: cost.ok !== false,
@@ -297,6 +299,9 @@ function emptySummary() {
     cacheReadTokens: 0,
     cacheCreationTokens: 0,
     costUsd: 0,
+    // 비용을 모르는 호출 수. `costUsd` 는 **아는 것만** 더한 값이므로,
+    // 이 값이 0 보다 크면 화면은 총액을 "이상"으로 표시해야 한다.
+    unknownCostCalls: 0,
   };
 }
 
@@ -308,7 +313,8 @@ function addTo(target, entry) {
   target.outputTokens += entry.outputTokens;
   target.cacheReadTokens += entry.cacheReadTokens;
   target.cacheCreationTokens += entry.cacheCreationTokens;
-  target.costUsd += entry.costUsd;
+  if (entry.costUsd === null) target.unknownCostCalls += 1;
+  else target.costUsd += entry.costUsd;
 }
 
 /**

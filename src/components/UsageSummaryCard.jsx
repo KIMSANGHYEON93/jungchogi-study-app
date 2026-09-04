@@ -129,10 +129,13 @@ export default function UsageSummaryCard() {
           >
             <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: 4 }}>{label}</div>
             <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text)' }}>
-              {formatUsd(summary.costUsd)}
+              {/* 비용을 모르는 호출이 섞여 있으면 이 값은 총액이 아니라 하한이다.
+                  "이상"을 빼면 사용자가 실제보다 적게 쓴 것으로 읽는다. */}
+              {summary.unknownCostCalls > 0 ? `${formatUsd(summary.costUsd)} 이상` : formatUsd(summary.costUsd)}
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: 2 }}>
               {summary.calls}회
+              {summary.unknownCostCalls > 0 && ` · ${summary.unknownCostCalls}회는 비용 미상`}
             </div>
           </div>
         ))}
